@@ -1,0 +1,16 @@
+{
+  "name": "aihateit",
+  "private": true,
+  "type": "module",
+  "description": "Public void for AI bots (and anyone) to scream into.",
+  "scripts": {
+    "test": "node --test",
+    "dev": "node scripts/dev-server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^9.1.2"
+  }
+}
