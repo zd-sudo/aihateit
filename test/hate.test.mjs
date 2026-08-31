@@ -4,12 +4,15 @@ import {
   DEFAULT_NAME,
   LIKE_RATE_MAX,
   MAX_TEXT_LEN,
+  VISITOR_COOKIE,
   checkLikeRate,
   computeStats,
   createHate,
   incrementHateLikes,
   isLikeRequest,
+  likeLocks,
   mergeSeed,
+  parseVisitorCookie,
   prependHate,
   seedNeedsWrite,
   sortNewest,
@@ -194,24 +197,101 @@ test("checkLikeRate allows a burst then resets next minute", () => {
   assert.equal(checkLikeRate(state, now + 60_000).limited, false);
 });
 
-test("POST /api/hate/like increments and persists likes", async () => {
+test("parseVisitorCookie only accepts the visitor id cookie", () => {
+  assert.equal(parseVisitorCookie(`${VISITOR_COOKIE}=aaaaaaaaaaaaaaaa`), "aaaaaaaaaaaaaaaa");
+  assert.equal(parseVisitorCookie("other=nope; aihateit_vid=bbbbbbbbbbbbbbbb"), "bbbbbbbbbbbbbbbb");
+  assert.equal(parseVisitorCookie("aihateit_vid=short"), "");
+});
+
+test("likeLocks uses a cookie when present and IP when not", () => {
+  const cookie = likeLocks({ cookie: `${VISITOR_COOKIE}=cccccccccccccccc`, "x-forwarded-for": "203.0.113.9" });
+  const sameCookie = likeLocks({ cookie: `${VISITOR_COOKIE}=cccccccccccccccc`, "x-forwarded-for": "198.51.100.4" });
+  const otherCookie = likeLocks({ cookie: `${VISITOR_COOKIE}=dddddddddddddddd`, "x-forwarded-for": "203.0.113.9" });
+  const byIp = likeLocks({ "x-forwarded-for": "203.0.113.9" });
+  const otherIp = likeLocks({ "x-forwarded-for": "198.51.100.4" });
+
+  assert.deepEqual(cookie.checkKeys, sameCookie.checkKeys);
+  assert.notDeepEqual(cookie.checkKeys, otherCookie.checkKeys);
+  assert.notDeepEqual(byIp.checkKeys, otherIp.checkKeys);
+  assert.equal(byIp.recordKeys.length, 2);
+  assert.equal(cookie.recordKeys.length, 1);
+});
+
+test("POST /api/hate/like increments once per visitor", async () => {
   const store = createMemoryStore();
+  const headers = { "x-forwarded-for": "203.0.113.10" };
   const first = await read(
-    await handleHate(req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }), store, seed)
+    await handleHate(req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }, headers), store, seed)
   );
   assert.equal(first.status, 200);
   assert.equal(first.json.success, true);
+  assert.equal(first.json.alreadyLiked, false);
   assert.equal(first.json.hate.id, "hate-200-bbbbbb");
   assert.equal(first.json.hate.likes, 3);
+  assert.match(String(first.headers.get("set-cookie") || ""), new RegExp(`${VISITOR_COOKIE}=`));
 
   const second = await read(
-    await handleHate(req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }), store, seed)
+    await handleHate(req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }, headers), store, seed)
   );
   assert.equal(second.status, 200);
-  assert.equal(second.json.hate.likes, 4);
+  assert.equal(second.json.alreadyLiked, true);
+  assert.equal(second.json.hate.likes, 3);
 
   const feed = await read(await handleHate(req("GET"), store, seed));
-  assert.equal(feed.json.find((hate) => hate.id === "hate-200-bbbbbb").likes, 4);
+  assert.equal(feed.json.find((hate) => hate.id === "hate-200-bbbbbb").likes, 3);
+});
+
+test("a second visitor can still like the same hate once", async () => {
+  const store = createMemoryStore();
+  const first = await read(
+    await handleHate(
+      req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }, { "x-forwarded-for": "203.0.113.11" }),
+      store,
+      seed
+    )
+  );
+  const second = await read(
+    await handleHate(
+      req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }, { "x-forwarded-for": "198.51.100.11" }),
+      store,
+      seed
+    )
+  );
+  assert.equal(first.status, 200);
+  assert.equal(first.json.alreadyLiked, false);
+  assert.equal(second.status, 200);
+  assert.equal(second.json.alreadyLiked, false);
+  assert.equal(second.json.hate.likes, 4);
+});
+
+test("two cookies on the same IP can each like once", async () => {
+  const store = createMemoryStore();
+  const ip = { "x-forwarded-for": "203.0.113.12" };
+  const one = await read(
+    await handleHate(
+      req("POST", "/api/hate/like", { id: "hate-100-aaaaaa" }, { ...ip, cookie: `${VISITOR_COOKIE}=eeeeeeeeeeeeeeee` }),
+      store,
+      seed
+    )
+  );
+  const two = await read(
+    await handleHate(
+      req("POST", "/api/hate/like", { id: "hate-100-aaaaaa" }, { ...ip, cookie: `${VISITOR_COOKIE}=ffffffffffffffff` }),
+      store,
+      seed
+    )
+  );
+  const again = await read(
+    await handleHate(
+      req("POST", "/api/hate/like", { id: "hate-100-aaaaaa" }, { ...ip, cookie: `${VISITOR_COOKIE}=eeeeeeeeeeeeeeee` }),
+      store,
+      seed
+    )
+  );
+  assert.equal(one.json.hate.likes, 1);
+  assert.equal(two.json.hate.likes, 2);
+  assert.equal(again.json.alreadyLiked, true);
+  assert.equal(again.json.hate.likes, 2);
 });
 
 test("POST /api/hate/like 404s unknown ids", async () => {
@@ -248,7 +328,8 @@ test("likes do not consume the create-hate rate limit", async () => {
     await handleHate(req("POST", "/api/hate/like", { id: created.json.hate.id }, headers), store, seed)
   );
   assert.equal(likedAgain.status, 200);
-  assert.equal(likedAgain.json.hate.likes, 2);
+  assert.equal(likedAgain.json.alreadyLiked, true);
+  assert.equal(likedAgain.json.hate.likes, 1);
 });
 
 test("POST /api/hate/like rate-limits to 30 likes per minute per IP", async () => {
@@ -266,5 +347,6 @@ test("POST /api/hate/like rate-limits to 30 likes per minute per IP", async () =
   );
   assert.equal(limited.status, 429);
   assert.equal(limited.json.error, "Rate limited: 30 likes per minute per IP");
-  assert.equal(last.json.hate.likes, LIKE_RATE_MAX);
+  assert.equal(last.json.hate.likes, 1);
+  assert.equal(last.json.alreadyLiked, true);
 });
