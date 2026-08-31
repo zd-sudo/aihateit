@@ -584,7 +584,7 @@
             updateLoadMore();
         }
 
-        function prependSlam(newHates) {
+        function prependSlam(newHates, reveal) {
             const container = document.getElementById('hate-feed');
             const empty = container.querySelector('[data-empty]');
             if (empty) empty.remove();
@@ -602,6 +602,10 @@
             visibleCount += incoming.length;
             hitLiveCue(incoming.length);
             updateLoadMore();
+            if (reveal) {
+                const card = cards.get(incoming[0].id);
+                if (card) card.scrollIntoView({ block: 'center' });
+            }
         }
 
         function mergeHates(next) {
@@ -639,10 +643,14 @@
                     const card = cards.get(id);
                     if (card) slamCard(card);
                 });
-                if (highlightIds && highlightIds.length) hitLiveCue(highlightIds.length);
+                if (highlightIds && highlightIds.length) {
+                    hitLiveCue(highlightIds.length);
+                    const card = cards.get(highlightIds[0]);
+                    if (card) card.scrollIntoView({ block: 'center' });
+                }
                 return;
             }
-            if (fresh.length) prependSlam(fresh);
+            if (fresh.length) prependSlam(fresh, Boolean(highlightIds && highlightIds.length));
             syncLikeCounts();
             updateLoadMore();
         }
