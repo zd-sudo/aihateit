@@ -10,6 +10,7 @@ import {
   createHate,
   incrementHateLikes,
   isLikeRequest,
+  likeEntryKey,
   likeLocks,
   mergeSeed,
   parseVisitorCookie,
@@ -215,6 +216,8 @@ test("likeLocks uses a cookie when present and IP when not", () => {
   assert.notDeepEqual(byIp.checkKeys, otherIp.checkKeys);
   assert.equal(byIp.recordKeys.length, 2);
   assert.equal(cookie.recordKeys.length, 1);
+  assert.equal(likeEntryKey(cookie.checkKeys[0], "hate-1"), likeEntryKey(cookie.checkKeys[0], "hate-1"));
+  assert.notEqual(likeEntryKey(cookie.checkKeys[0], "hate-1"), likeEntryKey(cookie.checkKeys[0], "hate-2"));
 });
 
 test("POST /api/hate/like increments once per visitor", async () => {
@@ -349,4 +352,93 @@ test("POST /api/hate/like rate-limits to 30 likes per minute per IP", async () =
   assert.equal(limited.json.error, "Rate limited: 30 likes per minute per IP");
   assert.equal(last.json.hate.likes, 1);
   assert.equal(last.json.alreadyLiked, true);
+});
+
+function bindStore(inner, overrides = {}) {
+  const store = {};
+  for (const key of Object.keys(inner)) {
+    store[key] = typeof inner[key] === "function" ? inner[key].bind(inner) : inner[key];
+  }
+  return { ...store, ...overrides };
+}
+
+test("same cookie cannot increment again after a pause", async () => {
+  const store = createMemoryStore();
+  const headers = { cookie: `${VISITOR_COOKIE}=hhhhhhhhhhhhhhhh`, "x-forwarded-for": "203.0.113.14" };
+  const like = async () =>
+    read(await handleHate(req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }, headers), store, seed));
+
+  const first = await like();
+  const second = await like();
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  const third = await like();
+
+  assert.equal(first.json.alreadyLiked, false);
+  assert.equal(first.json.hate.likes, 3);
+  assert.equal(second.json.alreadyLiked, true);
+  assert.equal(second.json.hate.likes, 3);
+  assert.equal(third.json.alreadyLiked, true);
+  assert.equal(third.json.hate.likes, 3);
+});
+
+test("parallel likes from one visitor increment once", async () => {
+  const store = createMemoryStore();
+  const headers = { cookie: `${VISITOR_COOKIE}=iiiiiiiiiiiiiiii`, "x-forwarded-for": "203.0.113.15" };
+  const like = () => handleHate(req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }, headers), store, seed);
+  const [a, b, c] = await Promise.all([like().then(read), like().then(read), like().then(read)]);
+  const firsts = [a, b, c].filter((row) => row.json.alreadyLiked === false);
+  assert.equal(firsts.length, 1);
+  assert.equal(firsts[0].json.hate.likes, 3);
+  const feed = await read(await handleHate(req("GET"), store, seed));
+  assert.equal(feed.json.find((hate) => hate.id === "hate-200-bbbbbb").likes, 3);
+});
+
+test("stale lock reads still cannot double-increment", async () => {
+  const inner = createMemoryStore();
+  const store = bindStore(inner, { hasLike: async () => false });
+  const headers = { cookie: `${VISITOR_COOKIE}=jjjjjjjjjjjjjjjj`, "x-forwarded-for": "203.0.113.16" };
+  const first = await read(
+    await handleHate(req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }, headers), store, seed)
+  );
+  const second = await read(
+    await handleHate(req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }, headers), store, seed)
+  );
+  assert.equal(first.json.alreadyLiked, false);
+  assert.equal(second.json.alreadyLiked, true);
+  assert.equal(second.json.hate.likes, 3);
+});
+
+test("parallel likes from two visitors both land via feed CAS", async () => {
+  const inner = createMemoryStore();
+  const store = bindStore(inner, {
+    async getFeedMeta() {
+      const meta = await inner.getFeedMeta();
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      return meta;
+    },
+  });
+  const like = (cookie) =>
+    handleHate(
+      req(
+        "POST",
+        "/api/hate/like",
+        { id: "hate-200-bbbbbb" },
+        { cookie: `${VISITOR_COOKIE}=${cookie}`, "x-forwarded-for": "203.0.113.17" }
+      ),
+      store,
+      seed
+    );
+  const [a, b] = await Promise.all([like("kkkkkkkkkkkkkkkk").then(read), like("llllllllllllllll").then(read)]);
+  assert.equal(a.json.alreadyLiked, false);
+  assert.equal(b.json.alreadyLiked, false);
+  const feed = await read(await handleHate(req("GET"), store, seed));
+  assert.equal(feed.json.find((hate) => hate.id === "hate-200-bbbbbb").likes, 4);
+});
+
+test("claimLike is exclusive for the same key", async () => {
+  const store = createMemoryStore();
+  assert.equal(await store.claimLike("lock:same"), true);
+  assert.equal(await store.claimLike("lock:same"), false);
+  assert.equal(await store.hasLike("lock:same"), true);
+  assert.equal(await store.claimLike("lock:other"), true);
 });
