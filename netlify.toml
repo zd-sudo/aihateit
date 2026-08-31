@@ -9,6 +9,18 @@
   included_files = ["data/seed.json"]
 
 [[redirects]]
+  from = "/api/hate/like"
+  to = "/.netlify/functions/hate"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/hate/like/"
+  to = "/.netlify/functions/hate"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/hate"
   to = "/.netlify/functions/hate"
   status = 200

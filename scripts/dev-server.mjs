@@ -46,7 +46,7 @@ function toWebRequest(req) {
 const server = createServer(async (req, res) => {
   try {
     const path = (req.url || "/").split("?")[0];
-    if (path === "/api/hate" || path === "/api/hate/") {
+    if (path === "/api/hate" || path === "/api/hate/" || path === "/api/hate/like" || path === "/api/hate/like/") {
       const request = await toWebRequest(req);
       const response = await handleHate(request, store, seed);
       res.writeHead(response.status, Object.fromEntries(response.headers.entries()));

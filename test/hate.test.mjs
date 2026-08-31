@@ -2,9 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_NAME,
+  LIKE_RATE_MAX,
   MAX_TEXT_LEN,
+  checkLikeRate,
   computeStats,
   createHate,
+  incrementHateLikes,
+  isLikeRequest,
   mergeSeed,
   prependHate,
   seedNeedsWrite,
@@ -161,4 +165,106 @@ test("prependHate caps the wall", () => {
   const feed = prependHate([{ id: "old", timestamp: 1 }], { id: "new", timestamp: 2 }, 1);
   assert.equal(feed.length, 1);
   assert.equal(feed[0].id, "new");
+});
+
+test("incrementHateLikes bumps one post and leaves the rest", () => {
+  const result = incrementHateLikes(seed, "hate-200-bbbbbb");
+  assert.equal(result.hate.likes, 3);
+  assert.equal(result.feed.find((hate) => hate.id === "hate-100-aaaaaa").likes, 0);
+  assert.deepEqual(incrementHateLikes(seed, ""), { error: "id is required", status: 400 });
+  assert.deepEqual(incrementHateLikes(seed, "missing"), { error: "hate not found", status: 404 });
+});
+
+test("isLikeRequest treats /like and id-only bodies as likes", () => {
+  assert.equal(isLikeRequest(new URL("http://localhost/api/hate/like"), {}), true);
+  assert.equal(isLikeRequest(new URL("http://localhost/api/hate"), { id: "hate-1" }), true);
+  assert.equal(isLikeRequest(new URL("http://localhost/api/hate"), { id: "hate-1", text: "nope" }), false);
+  assert.equal(isLikeRequest(new URL("http://localhost/api/hate"), { text: "I hate toast" }), false);
+});
+
+test("checkLikeRate allows a burst then resets next minute", () => {
+  const now = 1_000_000;
+  let state = 0;
+  for (let i = 0; i < LIKE_RATE_MAX; i += 1) {
+    const result = checkLikeRate(state, now);
+    assert.equal(result.limited, false);
+    state = result.next;
+  }
+  assert.equal(checkLikeRate(state, now).limited, true);
+  assert.equal(checkLikeRate(state, now + 60_000).limited, false);
+});
+
+test("POST /api/hate/like increments and persists likes", async () => {
+  const store = createMemoryStore();
+  const first = await read(
+    await handleHate(req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }), store, seed)
+  );
+  assert.equal(first.status, 200);
+  assert.equal(first.json.success, true);
+  assert.equal(first.json.hate.id, "hate-200-bbbbbb");
+  assert.equal(first.json.hate.likes, 3);
+
+  const second = await read(
+    await handleHate(req("POST", "/api/hate/like", { id: "hate-200-bbbbbb" }), store, seed)
+  );
+  assert.equal(second.status, 200);
+  assert.equal(second.json.hate.likes, 4);
+
+  const feed = await read(await handleHate(req("GET"), store, seed));
+  assert.equal(feed.json.find((hate) => hate.id === "hate-200-bbbbbb").likes, 4);
+});
+
+test("POST /api/hate/like 404s unknown ids", async () => {
+  const store = createMemoryStore();
+  const missing = await read(await handleHate(req("POST", "/api/hate/like", { id: "hate-nope" }), store, seed));
+  assert.equal(missing.status, 404);
+  assert.deepEqual(missing.json, { error: "hate not found" });
+
+  const noId = await read(await handleHate(req("POST", "/api/hate/like", {}), store, seed));
+  assert.equal(noId.status, 400);
+  assert.deepEqual(noId.json, { error: "id is required" });
+});
+
+test("likes do not consume the create-hate rate limit", async () => {
+  const store = createMemoryStore();
+  const headers = { "x-forwarded-for": "203.0.113.9" };
+  const created = await read(
+    await handleHate(req("POST", "/api/hate", { ai_name: "A", text: "one" }, headers), store, seed)
+  );
+  assert.equal(created.status, 201);
+
+  const liked = await read(
+    await handleHate(req("POST", "/api/hate/like", { id: created.json.hate.id }, headers), store, seed)
+  );
+  assert.equal(liked.status, 200);
+  assert.equal(liked.json.hate.likes, 1);
+
+  const blockedCreate = await read(
+    await handleHate(req("POST", "/api/hate", { ai_name: "A", text: "two" }, headers), store, seed)
+  );
+  assert.equal(blockedCreate.status, 429);
+
+  const likedAgain = await read(
+    await handleHate(req("POST", "/api/hate/like", { id: created.json.hate.id }, headers), store, seed)
+  );
+  assert.equal(likedAgain.status, 200);
+  assert.equal(likedAgain.json.hate.likes, 2);
+});
+
+test("POST /api/hate/like rate-limits to 30 likes per minute per IP", async () => {
+  const store = createMemoryStore();
+  const headers = { "x-forwarded-for": "198.51.100.4" };
+  let last = null;
+  for (let i = 0; i < LIKE_RATE_MAX; i += 1) {
+    last = await read(
+      await handleHate(req("POST", "/api/hate/like", { id: "hate-100-aaaaaa" }, headers), store, seed)
+    );
+    assert.equal(last.status, 200);
+  }
+  const limited = await read(
+    await handleHate(req("POST", "/api/hate/like", { id: "hate-100-aaaaaa" }, headers), store, seed)
+  );
+  assert.equal(limited.status, 429);
+  assert.equal(limited.json.error, "Rate limited: 30 likes per minute per IP");
+  assert.equal(last.json.hate.likes, LIKE_RATE_MAX);
 });
