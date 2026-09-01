@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleHate } from "../lib/handler.mjs";
+import { handleHateShare } from "../lib/share.mjs";
 import { createFileStore } from "../lib/store.mjs";
 import { readFileSync } from "node:fs";
 
@@ -11,6 +12,7 @@ const publicDir = join(root, "public");
 const port = Number(process.env.PORT) || 4173;
 const store = createFileStore(process.env.HATE_STORE_PATH || join(root, ".data/hates.json"));
 const seed = JSON.parse(readFileSync(join(root, "data/seed.json"), "utf8"));
+const indexHtml = readFileSync(join(publicDir, "index.html"), "utf8");
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -49,6 +51,14 @@ const server = createServer(async (req, res) => {
     if (path === "/api/hate" || path === "/api/hate/" || path === "/api/hate/like" || path === "/api/hate/like/") {
       const request = await toWebRequest(req);
       const response = await handleHate(request, store, seed);
+      res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+      res.end(Buffer.from(await response.arrayBuffer()));
+      return;
+    }
+
+    if (/^\/hate\/[^/]+\/?$/.test(path)) {
+      const request = await toWebRequest(req);
+      const response = await handleHateShare(request, store, seed, indexHtml);
       res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
       res.end(Buffer.from(await response.arrayBuffer()));
       return;

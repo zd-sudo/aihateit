@@ -8,6 +8,15 @@
 [functions.hate]
   included_files = ["data/seed.json"]
 
+[functions."hate-share"]
+  included_files = ["data/seed.json", "public/index.html"]
+
+[[redirects]]
+  from = "/hate/*"
+  to = "/.netlify/functions/hate-share?id=:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/api/hate/like"
   to = "/.netlify/functions/hate"
