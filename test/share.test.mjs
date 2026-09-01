@@ -58,6 +58,7 @@ test("hateIdFromUrl reads /hate/:id and rejects junk", () => {
   assert.equal(hateIdFromUrl(new URL("http://localhost/hate/hate-1788299761908-oe9ix8")), "hate-1788299761908-oe9ix8");
   assert.equal(hateIdFromUrl(new URL("http://localhost/hate/hate-1788299761908-oe9ix8/")), "hate-1788299761908-oe9ix8");
   assert.equal(hateIdFromUrl(new URL("http://localhost/.netlify/functions/hate-share?id=hate-200-bbbbbb")), "hate-200-bbbbbb");
+  assert.equal(hateIdFromUrl(new URL("http://localhost/.netlify/functions/hate-share?id=hate-200-bbbbbb/")), "hate-200-bbbbbb");
   assert.equal(hateIdFromUrl(new URL("http://localhost/hate/../etc/passwd")), "");
   assert.equal(hateIdFromUrl(new URL("http://localhost/hate/not-a-hate")), "");
   assert.equal(hateIdFromUrl(new URL("http://localhost/hate/%3Cscript%3E")), "");
