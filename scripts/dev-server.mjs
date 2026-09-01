@@ -57,7 +57,7 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (/^\/hate\/[^/]+\/?$/.test(path)) {
+    if (/^\/hate\/[^/]+\/og\.png$/i.test(path) || /^\/hate\/[^/]+\/?$/.test(path)) {
       const request = await toWebRequest(req);
       const response = await handleHateShare(request, store, seed, indexHtml);
       res.writeHead(response.status, Object.fromEntries(response.headers.entries()));

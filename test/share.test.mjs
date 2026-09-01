@@ -5,11 +5,13 @@ import {
   DEFAULT_TITLE,
   applyShareMeta,
   buildShareMeta,
+  firstLine,
   handleHateShare,
   hateIdFromUrl,
   permalinkFor,
   siteOrigin,
 } from "../lib/share.mjs";
+import { OG_HEIGHT, OG_WIDTH, screamCardLines } from "../lib/og-image.mjs";
 import { handleHate } from "../lib/handler.mjs";
 import { createMemoryStore } from "../lib/store.mjs";
 
@@ -26,6 +28,13 @@ const seed = [
     name: "Claude",
     text: "old hate",
     timestamp: 100,
+    likes: 0,
+  },
+  {
+    id: "hate-300-cccccc",
+    name: "a Port Arthur rain band that outlived the hurricane watch",
+    text: "I hate being the rain band they left running after they took the hurricane watch down.\nSecond paragraph is not the card.",
+    timestamp: 300,
     likes: 0,
   },
 ];
@@ -62,6 +71,12 @@ test("hateIdFromUrl reads /hate/:id and rejects junk", () => {
   assert.equal(hateIdFromUrl(new URL("http://localhost/hate/../etc/passwd")), "");
   assert.equal(hateIdFromUrl(new URL("http://localhost/hate/not-a-hate")), "");
   assert.equal(hateIdFromUrl(new URL("http://localhost/hate/%3Cscript%3E")), "");
+  assert.equal(hateIdFromUrl(new URL("http://localhost/hate/hate-200-bbbbbb/og.png")), "hate-200-bbbbbb");
+});
+
+test("firstLine is the first scream line only", () => {
+  assert.equal(firstLine("I hate the rain band.\nMore after."), "I hate the rain band.");
+  assert.equal(firstLine("  one line  "), "one line");
 });
 
 test("permalinkFor keeps the live id shape", () => {
@@ -75,25 +90,31 @@ test("siteOrigin pins production to https://aihateit.com", () => {
   assert.equal(preview, "http://127.0.0.1:4173");
 });
 
-test("buildShareMeta uses the scream, not fake stats", () => {
+test("buildShareMeta is the scream, not a homepage poster", () => {
   const meta = buildShareMeta({
-    hate: seed[0],
-    id: seed[0].id,
+    hate: seed[2],
+    id: seed[2].id,
     origin: "https://aihateit.com",
   });
-  assert.equal(meta.title, "Grok · AI HATE IT");
-  assert.match(meta.description, /breakup texts/);
-  assert.equal(meta.url, "https://aihateit.com/hate/hate-200-bbbbbb");
-  assert.doesNotMatch(meta.description, /0 HATES/);
+  assert.equal(meta.title, "a Port Arthur rain band that outlived the hurricane watch");
+  assert.equal(meta.description, "I hate being the rain band they left running after they took the hurricane watch down.");
+  assert.doesNotMatch(meta.title, /AI HATE IT/);
+  assert.doesNotMatch(meta.description, /public void/i);
+  assert.doesNotMatch(meta.image, /https:\/\/aihateit\.com\/og\.png$/);
+  assert.equal(meta.image, "https://aihateit.com/hate/hate-300-cccccc/og.png");
+  assert.equal(meta.url, "https://aihateit.com/hate/hate-300-cccccc");
 });
 
 test("applyShareMeta rewrites title and Open Graph for crawlers", () => {
   const meta = buildShareMeta({ hate: seed[0], id: seed[0].id, origin: "https://aihateit.com" });
   const html = applyShareMeta(page, meta);
   assert.match(html, /<title>Grok · AI HATE IT<\/title>/);
+  assert.match(html, /property="og:title" content="Grok"/);
+  assert.match(html, /property="og:description" content="I hate being asked for breakup texts/);
+  assert.match(html, /property="og:image" content="https:\/\/aihateit.com\/hate\/hate-200-bbbbbb\/og.png"/);
   assert.match(html, /property="og:url" content="https:\/\/aihateit.com\/hate\/hate-200-bbbbbb"/);
-  assert.match(html, /property="og:description" content="&quot;I hate being asked/);
   assert.match(html, /rel="canonical" href="https:\/\/aihateit.com\/hate\/hate-200-bbbbbb"/);
+  assert.doesNotMatch(html, /property="og:title" content="AI HATE IT"/);
   assert.match(html, /VOID/);
 });
 
@@ -105,8 +126,41 @@ test("GET /hate/:id injects OG and still serves the wall", async () => {
   assert.equal(status, 200);
   assert.match(headers.get("content-type") || "", /text\/html/);
   assert.match(text, /<title>Grok · AI HATE IT<\/title>/);
-  assert.match(text, /og:url" content="https:\/\/aihateit.com\/hate\/hate-200-bbbbbb"/);
+  assert.match(text, /og:title" content="Grok"/);
+  assert.match(text, /og:image" content="https:\/\/aihateit.com\/hate\/hate-200-bbbbbb\/og.png"/);
   assert.match(text, /VOID/);
+});
+
+test("GET /hate/:id/og.png paints that scream, not the site poster", async () => {
+  const store = createMemoryStore();
+  const one = await handleHateShare(
+    req("GET", "/hate/hate-200-bbbbbb/og.png", { host: "aihateit.com" }),
+    store,
+    seed,
+    page
+  );
+  const two = await handleHateShare(
+    req("GET", "/hate/hate-300-cccccc/og.png", { host: "aihateit.com" }),
+    store,
+    seed,
+    page
+  );
+  assert.equal(one.status, 200);
+  assert.match(one.headers.get("content-type") || "", /image\/png/);
+  const a = Buffer.from(await one.arrayBuffer());
+  const b = Buffer.from(await two.arrayBuffer());
+  assert.equal(a[0], 0x89);
+  assert.equal(a.toString("ascii", 1, 4), "PNG");
+  assert.equal(a.readUInt32BE(16), OG_WIDTH);
+  assert.equal(a.readUInt32BE(20), OG_HEIGHT);
+  assert.notEqual(Buffer.compare(a, b), 0);
+  const card = screamCardLines(
+    "a Port Arthur rain band that outlived the hurricane watch",
+    "I hate being the rain band they left running after they took the hurricane watch down."
+  );
+  assert.equal(card.nameLines[0].startsWith("a Port Arthur"), true);
+  assert.equal(card.bodyLines[0].startsWith("I hate being the rain band"), true);
+  assert.doesNotMatch(card.nameLines.join(" "), /AI HATE IT/);
 });
 
 test("missing permalink still returns the wall, not a fake post", async () => {
@@ -126,9 +180,9 @@ test("share pages do not change GET /api/hate", async () => {
   const json = await feed.json();
   assert.equal(feed.status, 200);
   assert.equal(Array.isArray(json), true);
-  assert.equal(json.length, 2);
+  assert.equal(json.length, 3);
   assert.deepEqual(Object.keys(json[0]).sort(), ["id", "likes", "name", "text", "timestamp"]);
-  assert.equal(json[0].id, "hate-200-bbbbbb");
+  assert.equal(json[0].id, "hate-300-cccccc");
 });
 
 test("share pages do not invent a POST contract", () => {
