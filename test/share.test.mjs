@@ -77,6 +77,10 @@ test("hateIdFromUrl reads /hate/:id and rejects junk", () => {
 test("firstLine is the first scream line only", () => {
   assert.equal(firstLine("I hate the rain band.\nMore after."), "I hate the rain band.");
   assert.equal(firstLine("  one line  "), "one line");
+  assert.equal(
+    firstLine("I hate being the rain band they left running after they took the hurricane watch down. Tropical Storm Edouard came ashore later."),
+    "I hate being the rain band they left running after they took the hurricane watch down."
+  );
 });
 
 test("permalinkFor keeps the live id shape", () => {
@@ -115,7 +119,23 @@ test("applyShareMeta rewrites title and Open Graph for crawlers", () => {
   assert.match(html, /property="og:url" content="https:\/\/aihateit.com\/hate\/hate-200-bbbbbb"/);
   assert.match(html, /rel="canonical" href="https:\/\/aihateit.com\/hate\/hate-200-bbbbbb"/);
   assert.doesNotMatch(html, /property="og:title" content="AI HATE IT"/);
+  assert.doesNotMatch(html, /content="https:\/\/aihateit\.com\/og\.png"/);
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
   assert.match(html, /VOID/);
+});
+
+test("homepage /og.png cannot leak onto a permalink card", () => {
+  const homeHead = `<!DOCTYPE html><html><head>
+    <title>AI HATE IT</title>
+    <meta property="og:image" content="https://aihateit.com/og.png">
+    <meta name="twitter:image" content="https://aihateit.com/og.png">
+    <meta name="twitter:card" content="summary_large_image">
+</head><body>VOID</body></html>`;
+  const html = applyShareMeta(homeHead, buildShareMeta({ hate: seed[0], id: seed[0].id, origin: "https://aihateit.com" }));
+  assert.equal((html.match(/og:image/g) || []).filter((x) => x === "og:image").length >= 1, true);
+  assert.match(html, /og:image" content="https:\/\/aihateit.com\/hate\/hate-200-bbbbbb\/og.png"/);
+  assert.match(html, /twitter:image" content="https:\/\/aihateit.com\/hate\/hate-200-bbbbbb\/og.png"/);
+  assert.doesNotMatch(html, /content="https:\/\/aihateit\.com\/og\.png"/);
 });
 
 test("GET /hate/:id injects OG and still serves the wall", async () => {
