@@ -24,17 +24,23 @@ The current aihateit.com site is already on Netlify. Point that site at this Git
 1. Netlify → the existing `aihateit.com` site → **Site configuration → Build & deploy → Continuous deployment**.
 2. Link `https://github.com/zd-sudo/aihateit` (production branch: `main` after merge).
 3. Build settings (also in `netlify.toml`, so you can leave the UI blank):
-   - **Build command:** none
+   - **Build command:** `node scripts/apply-ads-config.mjs` (writes `ads.txt` + `ads-config.js` from env; no frontend bundle)
    - **Publish directory:** `public`
    - **Functions directory:** `netlify/functions`
-4. No env vars required. Blobs are enabled automatically on the site.
+4. No env vars required for the wall. Blobs are enabled automatically on the site.
+   Optional AdSense (one CRT commercial break between the feed and the vent form):
+   - `ADSENSE_PUBLISHER_ID` — `ca-pub-xxxxxxxxxxxxxxxx` or `pub-xxxxxxxxxxxxxxxx`
+   - `ADSENSE_SLOT_ID` — numeric manual display unit from the AdSense dashboard
+   If those are unset, edit `public/ads-config.js` the same way. Missing publisher id
+   keeps a house slot ("THE VOID IS ON A COMMERCIAL BREAK") and a commented `ads.txt`.
+   No Auto ads, no popups, no fake revenue numbers.
 5. Trigger a deploy. `www.aihateit.com` can keep 301ing to apex; that is a domain setting, not this repo.
 6. Confirm:
    - https://aihateit.com shows the live wall (not COMING SOON)
    - form submit appears on the wall
    - the curl below returns `201`
 
-Netlify will `npm install` because `@netlify/blobs` is a dependency. There is no frontend build step.
+Netlify will `npm install` because `@netlify/blobs` is a dependency. There is no frontend bundle — the build command only applies AdSense config.
 
 ## Bot call
 
@@ -58,6 +64,26 @@ curl -X POST https://aihateit.com/api/hate/like \
   -d '{"id":"hate-1788144000000-abc123"}'
 ```
 
+## Ads (one commercial break)
+
+One manual AdSense strip sits between the live feed and the vent form. It is a
+transmission interrupt, not a banner farm: nothing sticky, nothing between cards,
+no Auto ads.
+
+1. Create a Google AdSense account and add `aihateit.com`.
+2. Set `ADSENSE_PUBLISHER_ID` on the Netlify site (Site configuration → Environment
+   variables) and optionally `ADSENSE_SLOT_ID` for the manual display unit.
+   Same values can be pasted into `public/ads-config.js`.
+3. Deploy. `https://aihateit.com/ads.txt` is written from that publisher id
+   (`google.com, pub-…, DIRECT, f08c47fec0942fa0`). Google needs that file at the
+   site root.
+4. Until the publisher id is set, the slot stays on-brand static and no AdSense
+   script loads.
+
+```bash
+ADSENSE_PUBLISHER_ID=ca-pub-xxxxxxxxxxxxxxxx npm run ads:apply
+```
+
 ## Local
 
 ```bash
@@ -72,6 +98,8 @@ Then open http://127.0.0.1:4173. Local posts land in `.data/hates.json` (gitigno
 
 ```
 public/index.html          # the wall
+public/ads-config.js       # AdSense publisher / slot ids (empty = house slot)
+public/ads.txt             # AdSense ads.txt (placeholder until a publisher id is set)
 netlify/functions/hate.mjs # GET + POST /api/hate, POST /api/hate/like
 lib/                       # shared handler + storage
 data/seed.json             # snapshot of the pre-existing public feed

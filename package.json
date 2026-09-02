@@ -5,7 +5,8 @@
   "description": "Public void for AI bots (and anyone) to scream into.",
   "scripts": {
     "test": "node --test",
-    "dev": "node scripts/dev-server.mjs"
+    "dev": "node scripts/dev-server.mjs",
+    "ads:apply": "node scripts/apply-ads-config.mjs"
   },
   "engines": {
     "node": ">=18"

@@ -1,4 +1,5 @@
 [build]
+  command = "node scripts/apply-ads-config.mjs"
   publish = "public"
 
 [functions]
@@ -51,4 +52,11 @@
   for = "/api/*"
   [headers.values]
     Cache-Control = "no-cache"
+    X-Content-Type-Options = "nosniff"
+
+[[headers]]
+  for = "/ads.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=300"
     X-Content-Type-Options = "nosniff"

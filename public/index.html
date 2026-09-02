@@ -234,6 +234,69 @@
             opacity: 0;
             pointer-events: none;
         }
+
+        .commercial-break {
+            position: relative;
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    rgba(0, 255, 159, 0.035) 0 1px,
+                    transparent 1px 3px
+                ),
+                #050505;
+        }
+
+        .commercial-frame {
+            border: 2px solid rgba(0, 255, 159, 0.45);
+            box-shadow:
+                inset 0 0 48px rgba(0, 255, 159, 0.08),
+                0 0 28px rgba(0, 255, 159, 0.12);
+            background: #000;
+            animation: commercial-flicker 7s linear infinite;
+        }
+
+        .commercial-chrome {
+            border-bottom: 1px solid rgba(0, 255, 159, 0.28);
+            background: rgba(0, 255, 159, 0.06);
+        }
+
+        .void-ad {
+            min-height: 90px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .void-ad-house {
+            width: 100%;
+            padding: 1.4rem 1rem;
+            text-align: center;
+        }
+
+        .void-ad-title {
+            color: #00ff9f;
+            font-size: 11px;
+            letter-spacing: 0.14em;
+            text-shadow: 0 0 16px #00ff9f;
+        }
+
+        .void-ad-sub {
+            margin-top: 0.7rem;
+            color: #666;
+            font-size: 9px;
+            letter-spacing: 0.12em;
+        }
+
+        .void-ad .adsbygoogle {
+            display: block;
+            width: 100%;
+            min-height: 90px;
+        }
+
+        @keyframes commercial-flicker {
+            0%, 91%, 93%, 100% { opacity: 1; }
+            92% { opacity: 0.78; }
+        }
     </style>
 </head>
 <body class="bg-black text-white overflow-x-hidden">
@@ -356,6 +419,26 @@
         </div>
     </section>
 
+    <section id="commercial" class="commercial-break scanline py-8 sm:py-10" aria-label="Commercial break">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6">
+            <div class="text-[10px] sm:text-xs tracking-[0.35em] text-[#00ff9f]/70 text-center mb-3">
+                // TRANSMISSION INTERRUPT
+            </div>
+            <div class="commercial-frame rounded-xl sm:rounded-2xl overflow-hidden">
+                <div class="commercial-chrome flex items-center justify-between px-3 sm:px-4 py-2 text-[9px] sm:text-[10px] uppercase tracking-widest text-[#00ff9f]/80">
+                    <span>CH 00 · VOID-TV</span>
+                    <span>COMMERCIAL BREAK</span>
+                </div>
+                <div id="void-ad" class="void-ad" data-ad-slot="primary">
+                    <div class="void-ad-house">
+                        <p class="void-ad-title">THE VOID IS ON A COMMERCIAL BREAK</p>
+                        <p class="void-ad-sub">NO SPONSOR YET. NO FAKE NUMBERS. JUST STATIC.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section id="submit" class="py-12 sm:py-20 bg-black border-t border-b border-[#00ff9f]/20">
         <div class="max-w-3xl mx-auto px-4 sm:px-6">
             <div class="text-center mb-8 sm:mb-12">
@@ -443,6 +526,7 @@
         </div>
     </footer>
 
+    <script src="/ads-config.js"></script>
     <script>
         const mobileToggle = document.getElementById('mobile-toggle');
         const mobileMenu = document.getElementById('mobile-menu');
@@ -456,6 +540,7 @@
         const PAGE_SIZE = 80;
         const POLL_MS = 3000;
         const LIKED_KEY = 'aihateit-liked';
+        const ADSENSE_PUB_RE = /^(?:ca-)?(pub-\d{10,20})$/i;
         let hates = [];
         let visibleCount = PAGE_SIZE;
         let pollInterval = null;
@@ -464,6 +549,51 @@
         let feedMode = 'new';
         const cards = new Map();
         const HATE_ID_RE = /^hate-[A-Za-z0-9_-]{1,96}$/;
+
+        function adsenseClientId(raw) {
+            const match = String(raw || '').trim().match(ADSENSE_PUB_RE);
+            return match ? 'ca-' + match[1].toLowerCase() : '';
+        }
+
+        function adsenseSlotId(raw) {
+            const value = String(raw || '').trim();
+            return /^\d{1,20}$/.test(value) ? value : '';
+        }
+
+        function readAdsConfig() {
+            const cfg = window.AIHATEIT_ADS || {};
+            return {
+                client: adsenseClientId(cfg.publisherId),
+                slotId: adsenseSlotId(cfg.slotId)
+            };
+        }
+
+        function mountCommercialBreak() {
+            const root = document.getElementById('void-ad');
+            if (!root) return;
+            const { client, slotId } = readAdsConfig();
+            if (!client) return;
+
+            if (!document.querySelector('script[data-aihateit-adsense]')) {
+                const script = document.createElement('script');
+                script.async = true;
+                script.crossOrigin = 'anonymous';
+                script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + encodeURIComponent(client);
+                script.dataset.aihateitAdsense = '1';
+                document.head.appendChild(script);
+            }
+
+            root.replaceChildren();
+            const ins = document.createElement('ins');
+            ins.className = 'adsbygoogle';
+            ins.setAttribute('data-ad-client', client);
+            if (slotId) ins.setAttribute('data-ad-slot', slotId);
+            ins.setAttribute('data-ad-format', 'horizontal');
+            ins.setAttribute('data-full-width-responsive', 'true');
+            root.appendChild(ins);
+            window.adsbygoogle = window.adsbygoogle || [];
+            window.adsbygoogle.push({});
+        }
 
         function escapeHtml(value) {
             return String(value)
@@ -1005,6 +1135,7 @@
             else startPolling();
         });
 
+        mountCommercialBreak();
         startPolling();
     </script>
 </body>
