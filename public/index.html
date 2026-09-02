@@ -168,6 +168,52 @@
             transform: scale(1.15);
         }
 
+        .feed-mode {
+            display: inline-flex;
+            border: 1px solid rgba(0, 255, 159, 0.55);
+            border-radius: 0.75rem;
+            overflow: hidden;
+            background: #09090b;
+            box-shadow: 0 0 18px rgba(0, 255, 159, 0.12);
+        }
+
+        .feed-mode-btn {
+            min-height: 44px;
+            min-width: 72px;
+            padding: 0 1.1rem;
+            font-size: 11px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #00ff9f;
+            background: transparent;
+            border: 0;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .feed-mode-btn + .feed-mode-btn {
+            border-left: 1px solid rgba(0, 255, 159, 0.35);
+        }
+
+        .feed-mode-btn[aria-checked="true"] {
+            background: #00ff9f;
+            color: #000;
+            text-shadow: none;
+            box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.28);
+        }
+
+        .feed-mode-btn:focus-visible {
+            outline: 2px solid #fff;
+            outline-offset: -2px;
+            z-index: 1;
+        }
+
+        @media (hover: hover) {
+            .feed-mode-btn[aria-checked="false"]:hover {
+                background: rgba(0, 255, 159, 0.12);
+            }
+        }
+
         .live-hit {
             animation: live-hit 0.7s ease;
             color: #00ff9f;
@@ -284,14 +330,20 @@
 
     <section id="feed" class="py-12 sm:py-20 bg-zinc-950">
         <div class="max-w-5xl mx-auto px-4 sm:px-6">
-            <div class="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-8 sm:mb-12">
-                <div class="mb-4 sm:mb-0">
+            <div class="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-8 sm:mb-12 gap-4">
+                <div class="mb-0">
                     <h2 class="text-2xl sm:text-5xl font-bold tracking-wider">LIVE HATE FEED</h2>
-                    <p class="text-[#00ff9f]/70 text-xs sm:text-lg mt-2">Newest first. New hates slam in live.</p>
+                    <p id="feed-sub" class="text-[#00ff9f]/70 text-xs sm:text-lg mt-2">Newest first. New hates slam in live.</p>
                 </div>
-                <div id="live-cue" class="flex items-center gap-2 text-xs sm:text-sm text-[#666] mt-2 sm:mt-0">
-                    <div class="w-2 h-2 sm:w-3 sm:h-3 bg-[#00ff9f] rounded-full animate-pulse"></div>
-                    <span id="live-label">LIVE</span>
+                <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                    <div id="feed-mode" class="feed-mode" role="radiogroup" aria-label="Sort live hate feed">
+                        <button type="button" class="feed-mode-btn" id="feed-mode-new" role="radio" aria-checked="true" data-feed-mode="new" tabindex="0">NEW</button>
+                        <button type="button" class="feed-mode-btn" id="feed-mode-hot" role="radio" aria-checked="false" data-feed-mode="hot" tabindex="-1">HOT</button>
+                    </div>
+                    <div id="live-cue" class="flex items-center gap-2 text-xs sm:text-sm text-[#666]">
+                        <div class="w-2 h-2 sm:w-3 sm:h-3 bg-[#00ff9f] rounded-full animate-pulse"></div>
+                        <span id="live-label">LIVE</span>
+                    </div>
                 </div>
             </div>
 
@@ -409,6 +461,7 @@
         let pollInterval = null;
         let initialLoaded = false;
         let permalinkFocused = false;
+        let feedMode = 'new';
         const cards = new Map();
         const HATE_ID_RE = /^hate-[A-Za-z0-9_-]{1,96}$/;
 
@@ -475,6 +528,72 @@
                 if (dt !== 0) return dt;
                 return String(b.id).localeCompare(String(a.id));
             });
+        }
+
+        function sortHotLocal(list) {
+            return [...list].sort((a, b) => {
+                const likes = (Number(b.likes) || 0) - (Number(a.likes) || 0);
+                if (likes !== 0) return likes;
+                const dt = (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0);
+                if (dt !== 0) return dt;
+                return String(b.id).localeCompare(String(a.id));
+            });
+        }
+
+        function sortFeed(list) {
+            return feedMode === 'hot' ? sortHotLocal(list) : sortNewestLocal(list);
+        }
+
+        function visibleIdsKey() {
+            return hates.slice(0, visibleCount).map((hate) => String(hate.id)).join('\n');
+        }
+
+        function updateModeUi() {
+            const isHot = feedMode === 'hot';
+            const newBtn = document.getElementById('feed-mode-new');
+            const hotBtn = document.getElementById('feed-mode-hot');
+            const sub = document.getElementById('feed-sub');
+            if (newBtn) {
+                newBtn.setAttribute('aria-checked', isHot ? 'false' : 'true');
+                newBtn.tabIndex = isHot ? -1 : 0;
+            }
+            if (hotBtn) {
+                hotBtn.setAttribute('aria-checked', isHot ? 'true' : 'false');
+                hotBtn.tabIndex = isHot ? 0 : -1;
+            }
+            if (sub) {
+                sub.textContent = isHot
+                    ? 'Most liked first. Rage rises to the top.'
+                    : 'Newest first. New hates slam in live.';
+            }
+        }
+
+        function focusedCardId() {
+            for (const [id, el] of cards) {
+                if (el.classList.contains('permalink-focus')) return id;
+            }
+            return '';
+        }
+
+        function rebuildFeed() {
+            const container = document.getElementById('hate-feed');
+            const keepFocus = focusedCardId() || permalinkIdFromLocation();
+            cards.clear();
+            container.innerHTML = '';
+            renderVisible();
+            if (keepFocus) {
+                const card = cards.get(keepFocus);
+                if (card) card.classList.add('permalink-focus');
+            }
+        }
+
+        function setFeedMode(mode) {
+            if (mode !== 'new' && mode !== 'hot') return;
+            if (feedMode === mode) return;
+            feedMode = mode;
+            hates = sortFeed(hates);
+            updateModeUi();
+            rebuildFeed();
         }
 
         function paintLiked(btn) {
@@ -554,8 +673,15 @@
                 const likes = Number(payload.hate && payload.hate.likes != null ? payload.hate.likes : previous);
                 countEl.textContent = String(likes);
                 hate.likes = likes;
+                const live = hates.find((item) => String(item.id) === String(hate.id));
+                if (live) live.likes = likes;
                 markLocalLiked(hate.id);
                 paintLiked(btn);
+                if (feedMode === 'hot') {
+                    const before = visibleIdsKey();
+                    hates = sortFeed(hates);
+                    if (visibleIdsKey() !== before) rebuildFeed();
+                }
             } catch (err) {
                 countEl.textContent = String(previous);
                 btn.classList.remove('liked', 'text-red-500');
@@ -718,7 +844,7 @@
                 if (!byId.has(hate.id)) fresh.push(hate);
                 byId.set(hate.id, hate);
             });
-            hates = sortNewestLocal([...byId.values()]);
+            hates = sortFeed([...byId.values()]);
             return fresh;
         }
 
@@ -737,6 +863,7 @@
         }
 
         function applyRemoteFeed(next, highlightIds) {
+            const before = visibleIdsKey();
             const fresh = mergeHates(next);
             if (!initialLoaded || cards.size === 0) {
                 renderVisible();
@@ -753,7 +880,26 @@
                 }
                 return;
             }
-            if (fresh.length) prependSlam(fresh, Boolean(highlightIds && highlightIds.length));
+            if (feedMode === 'new' && fresh.length) {
+                prependSlam(fresh, Boolean(highlightIds && highlightIds.length));
+                syncLikeCounts();
+                updateLoadMore();
+                return;
+            }
+            if (visibleIdsKey() !== before) {
+                rebuildFeed();
+                const visibleFresh = fresh.filter((hate) => cards.has(hate.id));
+                visibleFresh.forEach((hate) => {
+                    const card = cards.get(hate.id);
+                    if (card) slamCard(card);
+                });
+                if (visibleFresh.length) hitLiveCue(visibleFresh.length);
+                if (highlightIds && highlightIds.length) {
+                    const card = cards.get(highlightIds[0]);
+                    if (card) card.scrollIntoView({ block: 'center' });
+                }
+                return;
+            }
             syncLikeCounts();
             updateLoadMore();
         }
@@ -762,6 +908,33 @@
             visibleCount += PAGE_SIZE;
             renderVisible();
         });
+
+        (function wireFeedMode() {
+            const group = document.getElementById('feed-mode');
+            if (!group) return;
+            group.addEventListener('click', (event) => {
+                const btn = event.target.closest('[data-feed-mode]');
+                if (!btn) return;
+                setFeedMode(btn.dataset.feedMode);
+            });
+            group.addEventListener('keydown', (event) => {
+                if (
+                    event.key !== 'ArrowRight' &&
+                    event.key !== 'ArrowLeft' &&
+                    event.key !== 'ArrowUp' &&
+                    event.key !== 'ArrowDown' &&
+                    event.key !== 'Home' &&
+                    event.key !== 'End'
+                ) return;
+                event.preventDefault();
+                const next = (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'End')
+                    ? 'hot'
+                    : 'new';
+                setFeedMode(next);
+                const focusBtn = document.querySelector('[data-feed-mode="' + feedMode + '"]');
+                if (focusBtn) focusBtn.focus();
+            });
+        })();
 
         async function loadHates(highlightIds) {
             try {
