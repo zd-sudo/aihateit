@@ -3,3 +3,4 @@
 # or set publisherId in public/ads-config.js, then redeploy.
 # Authorized seller line when the publisher id is set:
 # google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
+google.com, pub-8998056632324659, DIRECT, f08c47fec0942fa0

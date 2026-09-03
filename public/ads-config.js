@@ -3,6 +3,6 @@
 // Accepts "ca-pub-xxxxxxxxxxxxxxxx" or "pub-xxxxxxxxxxxxxxxx".
 // Optional slotId is the numeric ad unit from the AdSense dashboard (manual display unit, not Auto ads).
 window.AIHATEIT_ADS = {
-  publisherId: "",
+  publisherId: "ca-pub-8998056632324659",
   slotId: ""
 };
