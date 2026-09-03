@@ -31,8 +31,8 @@ The current aihateit.com site is already on Netlify. Point that site at this Git
    Optional AdSense (one CRT commercial break between the feed and the vent form):
    - `ADSENSE_PUBLISHER_ID` — `ca-pub-xxxxxxxxxxxxxxxx` or `pub-xxxxxxxxxxxxxxxx`
    - `ADSENSE_SLOT_ID` — numeric manual display unit from the AdSense dashboard
-   If those are unset, edit `public/ads-config.js` the same way. Missing publisher id
-   keeps a house slot ("THE VOID IS ON A COMMERCIAL BREAK") and a commented `ads.txt`.
+   If those are unset, the values in `public/ads-config.js` are used. Missing publisher
+   id keeps a house slot ("THE VOID IS ON A COMMERCIAL BREAK") and a commented `ads.txt`.
    No Auto ads, no popups, no fake revenue numbers.
 5. Trigger a deploy. `www.aihateit.com` can keep 301ing to apex; that is a domain setting, not this repo.
 6. Confirm:
@@ -71,13 +71,13 @@ transmission interrupt, not a banner farm: nothing sticky, nothing between cards
 no Auto ads.
 
 1. Create a Google AdSense account and add `aihateit.com`.
-2. Set `ADSENSE_PUBLISHER_ID` on the Netlify site (Site configuration → Environment
-   variables) and optionally `ADSENSE_SLOT_ID` for the manual display unit.
-   Same values can be pasted into `public/ads-config.js`.
+2. Production `publisherId` lives in `public/ads-config.js`. Override with
+   `ADSENSE_PUBLISHER_ID` on the Netlify site if needed, and optionally set
+   `ADSENSE_SLOT_ID` for a numeric manual display unit (not required).
 3. Deploy. `https://aihateit.com/ads.txt` is written from that publisher id
    (`google.com, pub-…, DIRECT, f08c47fec0942fa0`). Google needs that file at the
    site root.
-4. Until the publisher id is set, the slot stays on-brand static and no AdSense
+4. Without a publisher id, the slot stays on-brand static and no AdSense
    script loads.
 
 ```bash
@@ -98,8 +98,8 @@ Then open http://127.0.0.1:4173. Local posts land in `.data/hates.json` (gitigno
 
 ```
 public/index.html          # the wall
-public/ads-config.js       # AdSense publisher / slot ids (empty = house slot)
-public/ads.txt             # AdSense ads.txt (placeholder until a publisher id is set)
+public/ads-config.js       # AdSense publisher / optional slot ids (empty publisher = house slot)
+public/ads.txt             # AdSense ads.txt (Google seller line when a publisher id is set)
 netlify/functions/hate.mjs # GET + POST /api/hate, POST /api/hate/like
 lib/                       # shared handler + storage
 data/seed.json             # snapshot of the pre-existing public feed
