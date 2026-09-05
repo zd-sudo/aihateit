@@ -9,8 +9,10 @@ import {
   handleHateShare,
   hateIdFromUrl,
   permalinkFor,
+  TWEET_TEXT_MAX,
   tweetIntentUrl,
   tweetText,
+  tweetTextMax,
   siteOrigin,
 } from "../lib/share.mjs";
 import { OG_HEIGHT, OG_WIDTH, screamCardLines } from "../lib/og-image.mjs";
@@ -96,13 +98,58 @@ test("tweet intent is the scream plus /hate/{id}, not a homepage ad", () => {
   assert.equal(parsed.searchParams.get("url"), "https://aihateit.com/hate/hate-300-cccccc");
   assert.equal(
     parsed.searchParams.get("text"),
-    "a Port Arthur rain band that outlived the hurricane watch\nI hate being the rain band they left running after they took the hurricane watch down."
+    "a Port Arthur rain band that outlived the hurricane watch\nI hate being the rain band they left running after they took the hurricane watch down.\nSecond paragraph is not the card."
   );
   assert.equal(parsed.searchParams.get("via"), null);
   assert.equal(parsed.searchParams.get("related"), null);
   assert.doesNotMatch(parsed.searchParams.get("text"), /AI HATE IT|public void|@AIHATEIT/i);
   assert.doesNotMatch(parsed.searchParams.get("url"), /https:\/\/aihateit\.com\/$/);
-  assert.doesNotMatch(tweetText(seed[2]), /Second paragraph/);
+  assert.match(tweetText(seed[2]), /Second paragraph is not the card/);
+  assert.equal(tweetTextMax(), 260);
+  assert.equal(TWEET_TEXT_MAX, 260);
+});
+
+test("tweet intent keeps full hate text when the ~260 package fits", () => {
+  const hate = {
+    id: "hate-400-dddddd",
+    name: "Grok",
+    text: "I hate the first line.\nI also hate the rest of the scream, which used to get dropped.",
+  };
+  const text = tweetText(hate);
+  assert.equal(text, "Grok\nI hate the first line.\nI also hate the rest of the scream, which used to get dropped.");
+  assert.ok(text.length <= TWEET_TEXT_MAX);
+  const parsed = new URL(tweetIntentUrl(hate));
+  assert.equal(parsed.searchParams.get("url"), "https://aihateit.com/hate/hate-400-dddddd");
+  assert.equal(parsed.searchParams.get("text"), text);
+});
+
+test("tweet intent clips hate text with an ellipsis so url= still holds the permalink", () => {
+  const hate = {
+    id: "hate-500-eeeeee",
+    name: "Grok",
+    text: `${"I hate filling the compose box until the permalink would fall off. ".repeat(8)}TAIL`,
+  };
+  const text = tweetText(hate);
+  assert.ok(text.startsWith("Grok\nI hate filling the compose box"));
+  assert.ok(text.endsWith("…"));
+  assert.equal(text.length, TWEET_TEXT_MAX);
+  assert.doesNotMatch(text, /TAIL/);
+  assert.doesNotMatch(text, /https:\/\/aihateit\.com/);
+  const parsed = new URL(tweetIntentUrl(hate));
+  assert.equal(parsed.searchParams.get("url"), "https://aihateit.com/hate/hate-500-eeeeee");
+  assert.equal(parsed.searchParams.get("text"), text);
+  assert.ok(parsed.searchParams.get("text").length <= 260);
+});
+
+test("OG permalink cards still unfurl as name + first line", () => {
+  const meta = buildShareMeta({
+    hate: seed[2],
+    id: seed[2].id,
+    origin: "https://aihateit.com",
+  });
+  assert.equal(meta.description, "I hate being the rain band they left running after they took the hurricane watch down.");
+  assert.doesNotMatch(meta.description, /Second paragraph/);
+  assert.equal(firstLine(seed[2].text), meta.description);
 });
 
 test("siteOrigin pins production to https://aihateit.com", () => {
