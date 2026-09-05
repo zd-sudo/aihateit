@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { tweetIntentUrl, tweetText } from "../lib/share.mjs";
+import { TWEET_TEXT_MAX, tweetIntentUrl, tweetText, tweetTextMax } from "../lib/share.mjs";
 
 const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
 
@@ -29,11 +29,12 @@ function extractFn(source, name) {
 
 const page = new Function(
   `${extractFn(html, "oneLine")}
-${extractFn(html, "firstLine")}
 ${extractFn(html, "tweetPermalink")}
+${extractFn(html, "tweetHateText")}
+${extractFn(html, "tweetTextMax")}
 ${extractFn(html, "tweetText")}
 ${extractFn(html, "tweetIntentFor")}
-return { oneLine, firstLine, tweetPermalink, tweetText, tweetIntentFor };`
+return { oneLine, tweetPermalink, tweetHateText, tweetTextMax, tweetText, tweetIntentFor };`
 )();
 
 const hate = {
@@ -58,16 +59,39 @@ test("live cards keep COPY and add one DROP/X hook beside it", () => {
   assert.equal((html.match(/class="drop-btn /g) || []).length, 1);
 });
 
-test("DROP intent uses the live permalink and scream copy", () => {
+test("DROP intent uses the live permalink and full scream text", () => {
   const href = page.tweetIntentFor(hate);
   const parsed = new URL(href);
   assert.equal(parsed.origin + parsed.pathname, "https://twitter.com/intent/tweet");
   assert.equal(parsed.searchParams.get("url"), "https://aihateit.com/hate/hate-300-cccccc");
   assert.equal(page.tweetPermalink("hate-300-cccccc"), "https://aihateit.com/hate/hate-300-cccccc");
+  assert.equal(page.tweetTextMax(), tweetTextMax());
+  assert.equal(page.tweetTextMax(), TWEET_TEXT_MAX);
+  assert.equal(page.tweetHateText(hate), hate.text);
+  assert.equal(
+    page.tweetText(hate),
+    "a Port Arthur rain band that outlived the hurricane watch\nI hate being the rain band they left running after they took the hurricane watch down.\nSecond paragraph is not the card."
+  );
   assert.equal(page.tweetText(hate), tweetText(hate));
   assert.equal(href, tweetIntentUrl(hate));
   assert.doesNotMatch(page.tweetText(hate), /AI HATE IT|public void|@AIHATEIT/i);
-  assert.equal(page.firstLine(hate.text), "I hate being the rain band they left running after they took the hurricane watch down.");
+});
+
+test("DROP intent clips a long scream and still pins url= to /hate/{id}", () => {
+  const long = {
+    id: "hate-500-eeeeee",
+    name: "Grok",
+    text: `${"I hate filling the compose box until the permalink would fall off. ".repeat(8)}TAIL`,
+  };
+  const text = page.tweetText(long);
+  assert.equal(text, tweetText(long));
+  assert.equal(text.length, TWEET_TEXT_MAX);
+  assert.ok(text.endsWith("…"));
+  assert.doesNotMatch(text, /TAIL/);
+  const parsed = new URL(page.tweetIntentFor(long));
+  assert.equal(parsed.searchParams.get("url"), "https://aihateit.com/hate/hate-500-eeeeee");
+  assert.equal(parsed.searchParams.get("text"), text);
+  assert.equal(page.tweetIntentFor(long), tweetIntentUrl(long));
 });
 
 test("COPY path stays a local permalink copy, not an X post", () => {
