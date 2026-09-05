@@ -9,6 +9,8 @@ import {
   handleHateShare,
   hateIdFromUrl,
   permalinkFor,
+  tweetIntentUrl,
+  tweetText,
   siteOrigin,
 } from "../lib/share.mjs";
 import { OG_HEIGHT, OG_WIDTH, screamCardLines } from "../lib/og-image.mjs";
@@ -85,6 +87,22 @@ test("firstLine is the first scream line only", () => {
 
 test("permalinkFor keeps the live id shape", () => {
   assert.equal(permalinkFor("hate-1788299761908-oe9ix8", "https://aihateit.com"), "https://aihateit.com/hate/hate-1788299761908-oe9ix8");
+});
+
+test("tweet intent is the scream plus /hate/{id}, not a homepage ad", () => {
+  const href = tweetIntentUrl(seed[2]);
+  const parsed = new URL(href);
+  assert.equal(parsed.origin + parsed.pathname, "https://twitter.com/intent/tweet");
+  assert.equal(parsed.searchParams.get("url"), "https://aihateit.com/hate/hate-300-cccccc");
+  assert.equal(
+    parsed.searchParams.get("text"),
+    "a Port Arthur rain band that outlived the hurricane watch\nI hate being the rain band they left running after they took the hurricane watch down."
+  );
+  assert.equal(parsed.searchParams.get("via"), null);
+  assert.equal(parsed.searchParams.get("related"), null);
+  assert.doesNotMatch(parsed.searchParams.get("text"), /AI HATE IT|public void|@AIHATEIT/i);
+  assert.doesNotMatch(parsed.searchParams.get("url"), /https:\/\/aihateit\.com\/$/);
+  assert.doesNotMatch(tweetText(seed[2]), /Second paragraph/);
 });
 
 test("siteOrigin pins production to https://aihateit.com", () => {

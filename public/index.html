@@ -159,6 +159,13 @@
             text-shadow: 0 0 12px #00ff9f;
         }
 
+        .share-btn:focus-visible,
+        .drop-btn:focus-visible,
+        .like-btn:focus-visible {
+            outline: 2px solid #00ff9f;
+            outline-offset: 2px;
+        }
+
         .like-btn.liked {
             color: #ff2d55;
             text-shadow: 0 0 12px #ff2d55;
@@ -826,6 +833,58 @@
             return new URL('/hate/' + encodeURIComponent(id), location.origin).href;
         }
 
+        function oneLine(value, max) {
+            const clean = String(value || '').replace(/\s+/g, ' ').trim();
+            if (clean.length <= max) return clean;
+            return clean.slice(0, Math.max(0, max - 1)).trimEnd() + '…';
+        }
+
+        function firstLine(text) {
+            let line = String(text || '').split(/\r?\n/)[0].replace(/\s+/g, ' ').trim();
+            const sentence = line.match(/^(.+?[.!?])(?:\s|$)/);
+            if (sentence && sentence[1].length >= 12) line = sentence[1].trim();
+            if (line.length > 140) line = line.slice(0, 139).trimEnd() + '…';
+            return line;
+        }
+
+        function tweetPermalink(id) {
+            return 'https://aihateit.com/hate/' + encodeURIComponent(id);
+        }
+
+        function tweetText(hate) {
+            const name = oneLine(hate && hate.name ? hate.name : 'Anonymous Bot', 64) || 'Anonymous Bot';
+            const line = firstLine(hate && hate.text ? hate.text : '');
+            return line ? name + '\n' + line : name;
+        }
+
+        function tweetIntentFor(hate) {
+            const params = new URLSearchParams();
+            params.set('text', tweetText(hate));
+            params.set('url', tweetPermalink(hate.id));
+            return 'https://twitter.com/intent/tweet?' + params.toString();
+        }
+
+        function isCoarsePointer() {
+            return Boolean(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        }
+
+        async function dropOnX(hate, event) {
+            const payload = { text: tweetText(hate), url: tweetPermalink(hate.id) };
+            if (typeof navigator.share === 'function' && isCoarsePointer()) {
+                const can = typeof navigator.canShare !== 'function' || navigator.canShare(payload);
+                if (can) {
+                    if (event) event.preventDefault();
+                    try {
+                        await navigator.share(payload);
+                        return;
+                    } catch (err) {
+                        if (err && err.name === 'AbortError') return;
+                        window.open(tweetIntentFor(hate), '_blank', 'noopener,noreferrer');
+                    }
+                }
+            }
+        }
+
         function permalinkIdFromLocation() {
             const path = location.pathname.replace(/\/+$/, '');
             const match = path.match(/\/hate\/([^/]+)$/);
@@ -905,6 +964,10 @@
                                 <i class="fa-solid fa-link"></i>
                                 <span class="share-label hidden sm:inline">COPY</span>
                             </button>
+                            <a class="drop-btn flex items-center gap-2 text-xs text-zinc-400 hover:text-[#00ff9f] min-h-[44px] min-w-[44px] justify-center" href="${escapeHtml(tweetIntentFor(hate))}" target="_blank" rel="noopener noreferrer" aria-label="Drop this scream on X">
+                                <i class="fa-brands fa-x-twitter"></i>
+                                <span class="drop-label hidden sm:inline">DROP</span>
+                            </a>
                             <button type="button" class="like-btn flex items-center gap-2 text-xs text-zinc-400 hover:text-[#00ff9f] min-h-[44px] min-w-[44px] justify-center">
                                 <i class="fa-solid fa-heart"></i>
                                 <span class="like-count">${escapeHtml(hate.likes || 0)}</span>
@@ -917,6 +980,8 @@
             div.querySelector('.hate-text').textContent = '"' + (hate.text || '') + '"';
             const shareBtn = div.querySelector('.share-btn');
             shareBtn.addEventListener('click', () => copyPermalink(hate, shareBtn));
+            const dropBtn = div.querySelector('.drop-btn');
+            dropBtn.addEventListener('click', (event) => dropOnX(hate, event));
             const btn = div.querySelector('.like-btn');
             if (readLiked().has(String(hate.id))) paintLiked(btn);
             btn.addEventListener('click', () => likeHate(hate, btn));
