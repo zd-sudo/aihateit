@@ -67,12 +67,12 @@ test("slot ids are digits only", () => {
   assert.equal(adsenseSlotId("12px"), "");
 });
 
-test("committed ads-config has the production publisher id and no invented slot", () => {
+test("committed ads-config has the production publisher id and display slot", () => {
   const fromFile = parseAdsConfigJs(adsConfig);
-  assert.deepEqual(fromFile, { publisherId: "ca-pub-8998056632324659", slotId: "" });
+  assert.deepEqual(fromFile, { publisherId: "ca-pub-8998056632324659", slotId: "7838798816" });
   assert.deepEqual(resolveAdsConfig({}, fromFile), {
     publisherId: "ca-pub-8998056632324659",
-    slotId: "",
+    slotId: "7838798816",
   });
   assert.equal(adsenseClientId(fromFile.publisherId), "ca-pub-8998056632324659");
   assert.equal(pageClientId(fromFile.publisherId), "ca-pub-8998056632324659");
@@ -93,7 +93,7 @@ test("env wins over the committed ads-config, missing id stays empty", () => {
 
 test("production ads.txt has exactly one Google authorized seller line", () => {
   assert.equal(adsTxt, adsTxtBody("ca-pub-8998056632324659"));
-  assert.equal(adsConfig, renderAdsConfigJs({ publisherId: "ca-pub-8998056632324659" }));
+  assert.equal(adsConfig, renderAdsConfigJs({ publisherId: "ca-pub-8998056632324659", slotId: "7838798816" }));
   assert.match(adsTxt, /publisher id/i);
   assert.match(adsTxt, /google\.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0/);
   assert.match(adsTxt, new RegExp(`^google\\.com, pub-8998056632324659, DIRECT, ${GOOGLE_CERTIFIED_SELLER}$`, "m"));
@@ -157,7 +157,7 @@ test("apply-ads-config writes ads.txt and ads-config.js from env", () => {
     assert.equal(fromCommitted.status, 0, fromCommitted.stderr);
     assert.deepEqual(parseAdsConfigJs(readFileSync(join(dir, "public/ads-config.js"), "utf8")), {
       publisherId: "ca-pub-8998056632324659",
-      slotId: "",
+      slotId: "7838798816",
     });
     assert.match(
       readFileSync(join(dir, "public/ads.txt"), "utf8"),

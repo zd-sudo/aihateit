@@ -100,7 +100,7 @@ Then open http://127.0.0.1:4173. Local posts land in `.data/hates.json` (gitigno
 
 ```
 public/index.html          # the wall
-public/ads-config.js       # AdSense publisher / optional slot ids (empty publisher = house slot)
+public/ads-config.js       # AdSense publisher + display slot (house CRT if missing/unfilled)
 public/ads.txt             # AdSense ads.txt (Google seller line when a publisher id is set)
 netlify/functions/hate.mjs # GET + POST /api/hate, POST /api/hate/like
 lib/                       # shared handler + storage
