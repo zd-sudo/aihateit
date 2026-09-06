@@ -182,13 +182,23 @@ test("one CRT commercial break sits between the feed and the composer", () => {
   assert.equal((html.match(/id="commercial"/g) || []).length, 1);
 });
 
-test("house copy stays until a publisher id is present, then an AdSense ins replaces it", () => {
-  function runMount(publisherId, slotId) {
+test("house copy stays without a slot; AdSense mounts only when client and slotId are set", () => {
+  function runMount(publisherId, slotId, metaSlot) {
     const created = [];
     const scripts = [];
+    const classNames = new Set();
     const root = {
-      house: { className: "void-ad-house" },
+      house: { className: "void-ad-house", hidden: false },
       children: null,
+      classList: {
+        add(name) { classNames.add(name); },
+        remove(name) { classNames.delete(name); },
+        contains(name) { return classNames.has(name); },
+      },
+      querySelector(sel) {
+        if (sel === ".void-ad-house") return this.house;
+        return null;
+      },
       replaceChildren() {
         this.children = [];
         this.house = null;
@@ -202,11 +212,18 @@ test("house copy stays until a publisher id is present, then an AdSense ins repl
 
     const document = {
       getElementById: (id) => (id === "void-ad" ? root : null),
-      querySelector: (sel) => (sel === 'script[data-aihateit-adsense]' ? scripts[0] || null : null),
+      querySelector(sel) {
+        if (sel === 'script[data-aihateit-adsense]') return scripts[0] || null;
+        if (sel === 'meta[name="adsense-slot"]') {
+          return metaSlot == null ? null : { getAttribute: () => metaSlot };
+        }
+        return null;
+      },
       createElement(tag) {
         const el = {
           tagName: tag,
           className: "",
+          hidden: false,
           async: false,
           crossOrigin: "",
           src: "",
@@ -214,6 +231,9 @@ test("house copy stays until a publisher id is present, then an AdSense ins repl
           attrs: {},
           setAttribute(name, value) {
             this.attrs[name] = value;
+          },
+          getAttribute(name) {
+            return Object.hasOwn(this.attrs, name) ? this.attrs[name] : null;
           },
         };
         created.push(el);
@@ -236,11 +256,12 @@ test("house copy stays until a publisher id is present, then an AdSense ins repl
       `${extractFn(html, "adsenseClientId")}
 ${extractFn(html, "adsenseSlotId")}
 ${extractFn(html, "readAdsConfig")}
+${extractFn(html, "syncCommercialBreakFill")}
 ${extractFn(html, "mountCommercialBreak")}
-return { readAdsConfig, mountCommercialBreak };`
+return { readAdsConfig, syncCommercialBreakFill, mountCommercialBreak };`
     )(/^(?:ca-)?(pub-\d{10,20})$/i, document, window);
     api.mountCommercialBreak();
-    return { root, scripts, created, window, config: api.readAdsConfig() };
+    return { root, scripts, created, window, config: api.readAdsConfig(), api };
   }
 
   const house = runMount("", "");
@@ -248,23 +269,51 @@ return { readAdsConfig, mountCommercialBreak };`
   assert.ok(house.root.house);
   assert.equal(house.scripts.length, 0);
   assert.equal(house.created.length, 0);
+  assert.equal(house.window.adsbygoogle, undefined);
 
-  const live = runMount("ca-pub-8998056632324659", "");
-  assert.equal(live.config.client, "ca-pub-8998056632324659");
-  assert.equal(live.config.slotId, "");
-  assert.equal(live.root.house, null);
-  assert.equal(live.scripts.length, 1);
+  const noSlot = runMount("ca-pub-8998056632324659", "");
+  assert.equal(noSlot.config.client, "ca-pub-8998056632324659");
+  assert.equal(noSlot.config.slotId, "");
+  assert.ok(noSlot.root.house);
+  assert.equal(noSlot.root.house.hidden, false);
+  assert.equal(noSlot.scripts.length, 1);
   assert.equal(
-    live.scripts[0].src,
+    noSlot.scripts[0].src,
     "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8998056632324659"
   );
-  const ins = live.root.children[0];
+  assert.equal((noSlot.root.children || []).some((node) => node.className === "adsbygoogle"), false);
+  assert.equal(noSlot.window.adsbygoogle, undefined);
+
+  const fromMeta = runMount("ca-pub-8998056632324659", "", "9988776655");
+  assert.equal(fromMeta.config.slotId, "9988776655");
+  const metaIns = fromMeta.root.children.find((node) => node.className === "adsbygoogle");
+  assert.equal(metaIns.attrs["data-ad-slot"], "9988776655");
+  assert.deepEqual(fromMeta.window.adsbygoogle, [{}]);
+
+  const live = runMount("ca-pub-8998056632324659", "1234567890");
+  assert.equal(live.config.client, "ca-pub-8998056632324659");
+  assert.equal(live.config.slotId, "1234567890");
+  assert.ok(live.root.house);
+  assert.equal(live.scripts.length, 1);
+  const ins = live.root.children.find((node) => node.className === "adsbygoogle");
   assert.equal(ins.className, "adsbygoogle");
   assert.equal(ins.attrs["data-ad-client"], "ca-pub-8998056632324659");
-  assert.equal(ins.attrs["data-ad-slot"], undefined);
+  assert.equal(ins.attrs["data-ad-slot"], "1234567890");
   assert.equal(ins.attrs["data-ad-format"], "horizontal");
   assert.equal(ins.attrs["data-full-width-responsive"], "true");
   assert.deepEqual(live.window.adsbygoogle, [{}]);
+
+  ins.setAttribute("data-ad-status", "unfilled");
+  live.api.syncCommercialBreakFill(live.root, ins);
+  assert.equal(ins.hidden, true);
+  assert.equal(live.root.house.hidden, false);
+  assert.equal(live.root.classList.contains("has-filled-ad"), false);
+
+  ins.setAttribute("data-ad-status", "filled");
+  live.api.syncCommercialBreakFill(live.root, ins);
+  assert.equal(ins.hidden, false);
+  assert.equal(live.root.house.hidden, true);
+  assert.equal(live.root.classList.contains("has-filled-ad"), true);
 });
 
 test("ads do not eat the feed, and Auto ads / popups stay out", () => {
@@ -274,6 +323,7 @@ test("ads do not eat the feed, and Auto ads / popups stay out", () => {
   assert.doesNotMatch(html, /<script[^>]+pagead2\.googlesyndication\.com/);
   assert.doesNotMatch(html, /position:\s*sticky/);
   assert.match(html, /if \(!client\) return/);
+  assert.match(html, /if \(!slotId\) return/);
   assert.match(html, /data-ad-format', 'horizontal'/);
   assert.doesNotMatch(html, /\$[\d,]+|RPM|revenue/i);
 });

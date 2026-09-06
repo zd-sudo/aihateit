@@ -33,6 +33,7 @@ The current aihateit.com site is already on Netlify. Point that site at this Git
    - `ADSENSE_SLOT_ID` — numeric manual display unit from the AdSense dashboard
    If those are unset, the values in `public/ads-config.js` are used. Missing publisher
    id keeps a house slot ("THE VOID IS ON A COMMERCIAL BREAK") and a commented `ads.txt`.
+   Publisher without a slot id still loads AdSense for the site, but leaves the house CRT.
    No Auto ads, no popups, no fake revenue numbers.
 5. Trigger a deploy. `www.aihateit.com` can keep 301ing to apex; that is a domain setting, not this repo.
 6. Confirm:
@@ -72,13 +73,14 @@ no Auto ads.
 
 1. Create a Google AdSense account and add `aihateit.com`.
 2. Production `publisherId` lives in `public/ads-config.js`. Override with
-   `ADSENSE_PUBLISHER_ID` on the Netlify site if needed, and optionally set
-   `ADSENSE_SLOT_ID` for a numeric manual display unit (not required).
+   `ADSENSE_PUBLISHER_ID` on the Netlify site if needed. `ADSENSE_SLOT_ID`
+   (or `slotId` in `ads-config.js`) is required for the unit to fill — get it
+   from an AdSense Display ad unit.
 3. Deploy. `https://aihateit.com/ads.txt` is written from that publisher id
    (`google.com, pub-…, DIRECT, f08c47fec0942fa0`). Google needs that file at the
    site root.
-4. Without a publisher id, the slot stays on-brand static and no AdSense
-   script loads.
+4. Without a publisher id, no AdSense script loads. Without a slot id, the
+   house CRT ("THE VOID IS ON A COMMERCIAL BREAK") stays visible.
 
 ```bash
 ADSENSE_PUBLISHER_ID=ca-pub-xxxxxxxxxxxxxxxx npm run ads:apply
