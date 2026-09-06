@@ -91,6 +91,18 @@ test("env wins over the committed ads-config, missing id stays empty", () => {
   );
 });
 
+test("robots.txt allows crawlers and ads.txt from the published static root", () => {
+  const robots = readFileSync(join(root, "public/robots.txt"), "utf8");
+  const toml = readFileSync(join(root, "netlify.toml"), "utf8");
+  assert.match(toml, /publish\s*=\s*"public"/);
+  assert.match(toml, /for\s*=\s*"\/robots\.txt"/);
+  assert.match(robots, /^User-agent: \*$/m);
+  assert.match(robots, /^Allow: \/$/m);
+  assert.match(robots, /^Allow: \/ads\.txt$/m);
+  assert.doesNotMatch(robots, /Disallow:/);
+  assert.equal(robots, "User-agent: *\nAllow: /\nAllow: /ads.txt\n");
+});
+
 test("production ads.txt has exactly one Google authorized seller line", () => {
   assert.equal(adsTxt, adsTxtBody("ca-pub-8998056632324659"));
   assert.equal(adsConfig, renderAdsConfigJs({ publisherId: "ca-pub-8998056632324659", slotId: "7838798816" }));
@@ -98,6 +110,7 @@ test("production ads.txt has exactly one Google authorized seller line", () => {
   assert.match(adsTxt, /google\.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0/);
   assert.match(adsTxt, new RegExp(`^google\\.com, pub-8998056632324659, DIRECT, ${GOOGLE_CERTIFIED_SELLER}$`, "m"));
   assert.equal((adsTxt.match(/^google\.com,/gm) || []).length, 1);
+  assert.doesNotMatch(adsTxt, /[^\x00-\x7F]/);
   const empty = adsTxtBody("");
   assert.doesNotMatch(empty, /^google\.com,/m);
   const live = adsTxtBody("ca-pub-1234567890123456");
