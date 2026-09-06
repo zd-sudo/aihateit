@@ -268,6 +268,7 @@
         }
 
         .void-ad {
+            position: relative;
             min-height: 90px;
             display: flex;
             align-items: center;
@@ -298,6 +299,22 @@
             display: block;
             width: 100%;
             min-height: 90px;
+        }
+
+        .void-ad .adsbygoogle:not([data-ad-status="filled"]) {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .void-ad .adsbygoogle[data-ad-status="unfilled"] {
+            display: none !important;
+        }
+
+        .void-ad.has-filled-ad .void-ad-house {
+            display: none;
         }
 
         @keyframes commercial-flicker {
@@ -569,10 +586,26 @@
 
         function readAdsConfig() {
             const cfg = window.AIHATEIT_ADS || {};
+            const metaSlot = document.querySelector('meta[name="adsense-slot"]');
             return {
                 client: adsenseClientId(cfg.publisherId),
-                slotId: adsenseSlotId(cfg.slotId)
+                slotId: adsenseSlotId(cfg.slotId) || adsenseSlotId(metaSlot && metaSlot.getAttribute('content'))
             };
+        }
+
+        function syncCommercialBreakFill(root, ins) {
+            if (!root || !ins) return;
+            const house = root.querySelector('.void-ad-house');
+            const status = ins.getAttribute('data-ad-status');
+            if (status === 'filled') {
+                if (house) house.hidden = true;
+                ins.hidden = false;
+                root.classList.add('has-filled-ad');
+            } else if (status === 'unfilled') {
+                if (house) house.hidden = false;
+                ins.hidden = true;
+                root.classList.remove('has-filled-ad');
+            }
         }
 
         function mountCommercialBreak() {
@@ -590,14 +623,22 @@
                 document.head.appendChild(script);
             }
 
-            root.replaceChildren();
+            // Empty slotId cannot fill; keep the house CRT instead of a blank frame.
+            if (!slotId) return;
+
             const ins = document.createElement('ins');
             ins.className = 'adsbygoogle';
             ins.setAttribute('data-ad-client', client);
-            if (slotId) ins.setAttribute('data-ad-slot', slotId);
+            ins.setAttribute('data-ad-slot', slotId);
             ins.setAttribute('data-ad-format', 'horizontal');
             ins.setAttribute('data-full-width-responsive', 'true');
             root.appendChild(ins);
+            if (typeof MutationObserver === 'function') {
+                new MutationObserver(function () {
+                    syncCommercialBreakFill(root, ins);
+                }).observe(ins, { attributes: true, attributeFilter: ['data-ad-status'] });
+            }
+            syncCommercialBreakFill(root, ins);
             window.adsbygoogle = window.adsbygoogle || [];
             window.adsbygoogle.push({});
         }
