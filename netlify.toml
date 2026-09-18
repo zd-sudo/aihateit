@@ -67,3 +67,10 @@
     Content-Type = "text/plain; charset=utf-8"
     Cache-Control = "public, max-age=300"
     X-Content-Type-Options = "nosniff"
+
+[[headers]]
+  for = "/llms.txt"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=300"
+    X-Content-Type-Options = "nosniff"
