@@ -9,6 +9,8 @@ import {
   GOOGLE_CERTIFIED_SELLER,
   adsTxtBody,
   adsenseClientId,
+  adsenseLoaderTag,
+  applyAdsenseLoader,
   normalizePublisherId,
   normalizeSlotId,
   parseAdsConfigJs,
@@ -128,6 +130,10 @@ test("apply-ads-config writes ads.txt and ads-config.js from env", () => {
     copyFileSync(join(root, "scripts/apply-ads-config.mjs"), join(dir, "scripts/apply-ads-config.mjs"));
     writeFileSync(join(dir, "public/ads-config.js"), renderAdsConfigJs({}));
     writeFileSync(join(dir, "public/ads.txt"), adsTxtBody(""));
+    writeFileSync(
+      join(dir, "public/index.html"),
+      `<head>\n    <meta name="viewport" content="width=device-width">\n    ${adsenseLoaderTag("ca-pub-8998056632324659")}\n</head>\n`
+    );
 
     const empty = spawnSync(process.execPath, [join(dir, "scripts/apply-ads-config.mjs")], {
       cwd: dir,
@@ -136,6 +142,7 @@ test("apply-ads-config writes ads.txt and ads-config.js from env", () => {
     assert.equal(empty.status, 0, empty.stderr);
     assert.doesNotMatch(readFileSync(join(dir, "public/ads.txt"), "utf8"), /^google\.com,/m);
     assert.match(readFileSync(join(dir, "public/ads-config.js"), "utf8"), /publisherId: ""/);
+    assert.doesNotMatch(readFileSync(join(dir, "public/index.html"), "utf8"), /pagead2/);
 
     const live = spawnSync(process.execPath, [join(dir, "scripts/apply-ads-config.mjs")], {
       cwd: dir,
@@ -155,6 +162,10 @@ test("apply-ads-config writes ads.txt and ads-config.js from env", () => {
       publisherId: "ca-pub-1234567890123456",
       slotId: "555",
     });
+    assert.match(
+      readFileSync(join(dir, "public/index.html"), "utf8"),
+      /client=ca-pub-1234567890123456"/
+    );
 
     writeFileSync(join(dir, "public/ads-config.js"), adsConfig);
     writeFileSync(join(dir, "public/ads.txt"), adsTxt);
@@ -176,6 +187,10 @@ test("apply-ads-config writes ads.txt and ads-config.js from env", () => {
       readFileSync(join(dir, "public/ads.txt"), "utf8"),
       /^google\.com, pub-8998056632324659, DIRECT, f08c47fec0942fa0$/m
     );
+    assert.match(
+      readFileSync(join(dir, "public/index.html"), "utf8"),
+      /client=ca-pub-8998056632324659"/
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -196,9 +211,9 @@ test("one CRT commercial break sits between the feed and the composer", () => {
 });
 
 test("house copy stays without a slot; AdSense mounts only when client and slotId are set", () => {
-  function runMount(publisherId, slotId, metaSlot) {
+  function runMount(publisherId, slotId, metaSlot, existingScripts) {
     const created = [];
-    const scripts = [];
+    const scripts = Array.isArray(existingScripts) ? existingScripts.slice() : [];
     const classNames = new Set();
     const root = {
       house: { className: "void-ad-house", hidden: false },
@@ -227,6 +242,9 @@ test("house copy stays without a slot; AdSense mounts only when client and slotI
       getElementById: (id) => (id === "void-ad" ? root : null),
       querySelector(sel) {
         if (sel === 'script[data-aihateit-adsense]') return scripts[0] || null;
+        if (String(sel).includes("pagead2.googlesyndication.com/pagead/js/adsbygoogle.js")) {
+          return scripts.find((node) => String(node.src || "").includes("pagead2.googlesyndication.com/pagead/js/adsbygoogle.js")) || null;
+        }
         if (sel === 'meta[name="adsense-slot"]') {
           return metaSlot == null ? null : { getAttribute: () => metaSlot };
         }
@@ -327,16 +345,52 @@ return { readAdsConfig, syncCommercialBreakFill, mountCommercialBreak };`
   assert.equal(ins.hidden, false);
   assert.equal(live.root.house.hidden, true);
   assert.equal(live.root.classList.contains("has-filled-ad"), true);
+
+  const preloaded = {
+    src: "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8998056632324659",
+    dataset: { aihateitAdsense: "static" },
+  };
+  const withStatic = runMount("ca-pub-8998056632324659", "1234567890", null, [preloaded]);
+  assert.equal(withStatic.scripts.length, 1);
+  assert.equal(withStatic.scripts[0], preloaded);
+  const staticIns = withStatic.root.children.find((node) => node.className === "adsbygoogle");
+  assert.equal(staticIns.attrs["data-ad-client"], "ca-pub-8998056632324659");
+  assert.equal(staticIns.attrs["data-ad-slot"], "1234567890");
+  assert.deepEqual(withStatic.window.adsbygoogle, [{}]);
 });
 
-test("ads do not eat the feed, and Auto ads / popups stay out", () => {
+test("ads do not eat the feed, and the static loader is the only head tag", () => {
   const feedBlock = html.slice(html.indexOf('id="hate-feed"'), html.indexOf('id="load-more"'));
+  const head = html.slice(0, html.indexOf("</head>"));
+  const loader = adsenseLoaderTag("ca-pub-8998056632324659");
   assert.doesNotMatch(feedBlock, /void-ad|adsbygoogle|commercial/);
   assert.doesNotMatch(html, /enable_page_level_ads/);
-  assert.doesNotMatch(html, /<script[^>]+pagead2\.googlesyndication\.com/);
   assert.doesNotMatch(html, /position:\s*sticky/);
+  assert.match(head, /<script async src="https:\/\/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js\?client=ca-pub-8998056632324659" crossorigin="anonymous"><\/script>/);
+  assert.equal((html.match(/<script async src="https:\/\/pagead2\.googlesyndication\.com/g) || []).length, 1);
+  assert.equal(applyAdsenseLoader(html, "ca-pub-8998056632324659"), html);
+  assert.ok(head.includes(loader));
   assert.match(html, /if \(!client\) return/);
   assert.match(html, /if \(!slotId\) return/);
+  assert.match(html, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
   assert.match(html, /data-ad-format', 'horizontal'/);
+  assert.match(html, /href="\/privacy"/);
+  assert.match(html, /rel="privacy-policy"/);
   assert.doesNotMatch(html, /\$[\d,]+|RPM|revenue/i);
+});
+
+test("static loader follows the resolved publisher id and drops when it is empty", () => {
+  const sample = `<head>
+    <meta name="viewport" content="width=device-width">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8998056632324659" crossorigin="anonymous"></script>
+    <title>AI HATE IT</title>
+</head>`;
+  const updated = applyAdsenseLoader(sample, "ca-pub-1234567890123456");
+  assert.match(updated, /client=ca-pub-1234567890123456"/);
+  assert.doesNotMatch(updated, /8998056632324659/);
+  assert.equal((updated.match(/adsbygoogle\.js/g) || []).length, 1);
+  assert.equal(applyAdsenseLoader(updated, "ca-pub-1234567890123456"), updated);
+  const stripped = applyAdsenseLoader(updated, "");
+  assert.doesNotMatch(stripped, /adsbygoogle|pagead2/);
+  assert.equal(adsenseLoaderTag("nope"), "");
 });

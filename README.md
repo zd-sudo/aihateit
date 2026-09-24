@@ -34,7 +34,10 @@ The current aihateit.com site is already on Netlify. Point that site at this Git
    If those are unset, the values in `public/ads-config.js` are used. Missing publisher
    id keeps a house slot ("THE VOID IS ON A COMMERCIAL BREAK") and a commented `ads.txt`.
    Publisher without a slot id still loads AdSense for the site, but leaves the house CRT.
-   No Auto ads, no popups, no fake revenue numbers.
+   The same publisher id is also a static `adsbygoogle.js` script in the page `<head>`
+   (homepage and `/privacy`) so Google's crawler can see it without running JavaScript.
+   The build rewrites that tag from the resolved publisher id. No popups, no fake revenue numbers.
+   Privacy policy: https://aihateit.com/privacy
 5. Trigger a deploy. `www.aihateit.com` can keep 301ing to apex; that is a domain setting, not this repo.
 6. Confirm:
    - https://aihateit.com shows the live wall (not COMING SOON)
@@ -78,9 +81,12 @@ no Auto ads.
    from an AdSense Display ad unit.
 3. Deploy. `https://aihateit.com/ads.txt` is written from that publisher id
    (`google.com, pub-…, DIRECT, f08c47fec0942fa0`). Google needs that file at the
-   site root.
-4. Without a publisher id, no AdSense script loads. Without a slot id, the
-   house CRT ("THE VOID IS ON A COMMERCIAL BREAK") stays visible.
+   site root. The homepage and privacy page also include that client as a static
+   loader in `<head>`. If that tag is already present, the page does not inject a
+   second copy. The manual display unit still mounts from `ads-config.js`.
+4. Without a publisher id, the static loader is removed and no AdSense script loads.
+   Without a slot id, the house CRT ("THE VOID IS ON A COMMERCIAL BREAK") stays visible.
+   `/privacy` is the privacy policy (also served as `/privacy.html`).
 
 ```bash
 ADSENSE_PUBLISHER_ID=ca-pub-xxxxxxxxxxxxxxxx npm run ads:apply
@@ -100,6 +106,7 @@ Then open http://127.0.0.1:4173. Local posts land in `.data/hates.json` (gitigno
 
 ```
 public/index.html          # the wall
+public/privacy.html        # privacy policy (/privacy and /privacy.html)
 public/ads-config.js       # AdSense publisher + display slot (house CRT if missing/unfilled)
 public/ads.txt             # AdSense ads.txt (Google seller line when a publisher id is set)
 netlify/functions/hate.mjs # GET + POST /api/hate, POST /api/hate/like

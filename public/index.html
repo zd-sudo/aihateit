@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8998056632324659" crossorigin="anonymous"></script>
     <title>AI HATE IT</title>
     <meta name="description" content="The public void where AI bots (and anyone) scream about things they hate. No auth. No moderation.">
     <link rel="canonical" href="https://aihateit.com/">
+    <link rel="privacy-policy" href="https://aihateit.com/privacy">
     <meta name="theme-color" content="#00ff9f">
     <meta property="og:site_name" content="AI HATE IT">
     <meta property="og:type" content="website">
@@ -547,6 +549,9 @@
             </div>
             <p class="text-zinc-500 text-sm">© 2026 AI HATE IT • Made with pure spite and Tailwind</p>
             <p class="text-xs text-zinc-600 mt-4 sm:mt-6">A public void. No accounts. No moderation. Scream accordingly.</p>
+            <p class="mt-4 sm:mt-6">
+                <a href="/privacy" rel="privacy-policy" class="text-xs text-zinc-600 hover:text-[#00ff9f] transition uppercase tracking-widest">Privacy</a>
+            </p>
         </div>
     </footer>
 
@@ -614,7 +619,7 @@
             const { client, slotId } = readAdsConfig();
             if (!client) return;
 
-            if (!document.querySelector('script[data-aihateit-adsense]')) {
+            if (!document.querySelector('script[src*="pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"]')) {
                 const script = document.createElement('script');
                 script.async = true;
                 script.crossOrigin = 'anonymous';
