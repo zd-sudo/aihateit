@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { extname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleHate } from "../lib/handler.mjs";
 import { handleHateShare } from "../lib/share.mjs";
@@ -23,6 +23,7 @@ const types = {
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
   ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
 };
 
 function toWebRequest(req) {
@@ -66,15 +67,34 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const staticPath = path === "/privacy" || path === "/privacy/" ? "/privacy.html" : path;
-    const filePath = join(publicDir, staticPath === "/" ? "index.html" : staticPath);
-    if (!filePath.startsWith(publicDir)) {
-      res.writeHead(403);
-      res.end("no");
+    const requestPath = path === "/" ? "/" : path.replace(/\/+$/, "") || "/";
+    const candidates = requestPath === "/"
+      ? ["/index.html"]
+      : [requestPath, extname(requestPath) ? "" : `${requestPath}.html`].filter(Boolean);
+    let body = null;
+    let served = "";
+    for (const candidate of candidates) {
+      const filePath = join(publicDir, candidate);
+      const publicRoot = publicDir.endsWith(sep) ? publicDir : publicDir + sep;
+      if (filePath !== publicDir && !filePath.startsWith(publicRoot)) {
+        res.writeHead(403);
+        res.end("no");
+        return;
+      }
+      try {
+        body = await readFile(filePath);
+        served = filePath;
+        break;
+      } catch (err) {
+        if (!err || err.code !== "ENOENT") throw err;
+      }
+    }
+    if (!body) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("not found");
       return;
     }
-    const body = await readFile(filePath);
-    res.writeHead(200, { "Content-Type": types[extname(filePath)] || "application/octet-stream" });
+    res.writeHead(200, { "Content-Type": types[extname(served)] || "application/octet-stream" });
     res.end(body);
   } catch (err) {
     if (err && err.code === "ENOENT") {
