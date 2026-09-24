@@ -66,7 +66,8 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const filePath = join(publicDir, path === "/" ? "index.html" : path);
+    const staticPath = path === "/privacy" || path === "/privacy/" ? "/privacy.html" : path;
+    const filePath = join(publicDir, staticPath === "/" ? "index.html" : staticPath);
     if (!filePath.startsWith(publicDir)) {
       res.writeHead(403);
       res.end("no");
