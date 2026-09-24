@@ -56,7 +56,12 @@ test("live cards keep COPY and add one DROP/X hook beside it", () => {
   assert.ok(html.indexOf('class="share-btn ') < html.indexOf('class="drop-btn '));
   assert.ok(html.indexOf('class="drop-btn ') < html.indexOf('class="like-btn '));
   assert.match(html, /drop-btn[\s\S]*min-h-\[44px\][\s\S]*min-w-\[44px\]/);
-  assert.equal((html.match(/class="drop-btn /g) || []).length, 1);
+  const template = html.slice(html.indexOf("function createHateCard"));
+  const feed = html.slice(html.indexOf('id="hate-feed"'), html.indexOf('id="load-more"'));
+  const cards = (feed.match(/data-hate-id="/g) || []).length;
+  assert.equal((template.match(/class="drop-btn /g) || []).length, 1);
+  assert.equal((feed.match(/class="drop-btn /g) || []).length, cards);
+  assert.equal((html.match(/class="drop-btn /g) || []).length, cards + 1);
 });
 
 test("DROP intent uses the live permalink and full scream text", () => {

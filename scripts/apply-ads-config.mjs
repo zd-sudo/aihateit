@@ -19,7 +19,7 @@ const config = resolveAdsConfig(process.env, existingConfig());
 writeFileSync(configPath, renderAdsConfigJs(config));
 writeFileSync(adsTxtPath, adsTxtBody(config.publisherId));
 
-for (const rel of ["public/index.html", "public/privacy.html"]) {
+for (const rel of ["public/index.html", "public/privacy.html", "public/about.html", "public/thanks.html"]) {
   const file = join(root, rel);
   let html;
   try {

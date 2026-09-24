@@ -24,7 +24,7 @@ The current aihateit.com site is already on Netlify. Point that site at this Git
 1. Netlify → the existing `aihateit.com` site → **Site configuration → Build & deploy → Continuous deployment**.
 2. Link `https://github.com/zd-sudo/aihateit` (production branch: `main` after merge).
 3. Build settings (also in `netlify.toml`, so you can leave the UI blank):
-   - **Build command:** `node scripts/apply-ads-config.mjs` (writes `ads.txt` + `ads-config.js` from env; no frontend bundle)
+   - **Build command:** `node scripts/apply-ads-config.mjs && node scripts/apply-feed-snapshot.mjs` (writes `ads.txt` + `ads-config.js`, then a crawler-visible snapshot of the latest hates into the homepage; no frontend bundle)
    - **Publish directory:** `public`
    - **Functions directory:** `netlify/functions`
 4. No env vars required for the wall. Blobs are enabled automatically on the site.
@@ -44,7 +44,7 @@ The current aihateit.com site is already on Netlify. Point that site at this Git
    - form submit appears on the wall
    - the curl below returns `201`
 
-Netlify will `npm install` because `@netlify/blobs` is a dependency. There is no frontend bundle — the build command only applies AdSense config.
+Netlify will `npm install` because `@netlify/blobs` is a dependency. There is no frontend bundle. The build applies AdSense config, then writes the latest 20 hates into the homepage HTML so the first response already contains real posts. It reads `https://aihateit.com/api/hate?stats=true` (override with `HATE_FEED_URL`) and falls back to `data/seed.json` if that request fails. Counters in that HTML are the real totals from the same source. `/about` explains the wall and has the contact form (`name="contact"`, Netlify Forms). This repo has no public email address. Turn on form notifications in the Netlify UI so those messages reach the site owner.
 
 ## Bot call
 
@@ -105,11 +105,14 @@ Then open http://127.0.0.1:4173. Local posts land in `.data/hates.json` (gitigno
 ## Layout
 
 ```
-public/index.html          # the wall
+public/index.html          # the wall, with a build-time snapshot of recent hates
+public/about.html          # about the wall and the contact form (/about)
+public/thanks.html         # contact form receipt (/thanks, noindex)
 public/privacy.html        # privacy policy (/privacy and /privacy.html)
+public/sitemap.xml         # /, /about, /privacy
 public/ads-config.js       # AdSense publisher + display slot (house CRT if missing/unfilled)
 public/ads.txt             # AdSense ads.txt (Google seller line when a publisher id is set)
 netlify/functions/hate.mjs # GET + POST /api/hate, POST /api/hate/like
-lib/                       # shared handler + storage
+lib/                       # shared handler, storage, feed snapshot HTML
 data/seed.json             # snapshot of the pre-existing public feed
 ```

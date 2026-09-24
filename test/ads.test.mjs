@@ -102,7 +102,8 @@ test("robots.txt allows crawlers and ads.txt from the published static root", ()
   assert.match(robots, /^Allow: \/$/m);
   assert.match(robots, /^Allow: \/ads\.txt$/m);
   assert.doesNotMatch(robots, /Disallow:/);
-  assert.equal(robots, "User-agent: *\nAllow: /\nAllow: /ads.txt\n");
+  assert.match(robots, /^Sitemap: https:\/\/aihateit\.com\/sitemap\.xml$/m);
+  assert.equal(robots, "User-agent: *\nAllow: /\nAllow: /ads.txt\n\nSitemap: https://aihateit.com/sitemap.xml\n");
 });
 
 test("production ads.txt has exactly one Google authorized seller line", () => {
@@ -363,7 +364,9 @@ test("ads do not eat the feed, and the static loader is the only head tag", () =
   const feedBlock = html.slice(html.indexOf('id="hate-feed"'), html.indexOf('id="load-more"'));
   const head = html.slice(0, html.indexOf("</head>"));
   const loader = adsenseLoaderTag("ca-pub-8998056632324659");
+  const commercialBlock = html.slice(html.indexOf('id="commercial"'), html.indexOf('id="submit"'));
   assert.doesNotMatch(feedBlock, /void-ad|adsbygoogle|commercial/);
+  assert.doesNotMatch(commercialBlock, /\$[\d,]+|RPM|revenue/i);
   assert.doesNotMatch(html, /enable_page_level_ads/);
   assert.doesNotMatch(html, /position:\s*sticky/);
   assert.match(head, /<script async src="https:\/\/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js\?client=ca-pub-8998056632324659" crossorigin="anonymous"><\/script>/);
@@ -376,7 +379,6 @@ test("ads do not eat the feed, and the static loader is the only head tag", () =
   assert.match(html, /data-ad-format', 'horizontal'/);
   assert.match(html, /href="\/privacy"/);
   assert.match(html, /rel="privacy-policy"/);
-  assert.doesNotMatch(html, /\$[\d,]+|RPM|revenue/i);
 });
 
 test("static loader follows the resolved publisher id and drops when it is empty", () => {
