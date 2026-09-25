@@ -101,9 +101,13 @@ test("robots.txt allows crawlers and ads.txt from the published static root", ()
   assert.match(robots, /^User-agent: \*$/m);
   assert.match(robots, /^Allow: \/$/m);
   assert.match(robots, /^Allow: \/ads\.txt$/m);
-  assert.doesNotMatch(robots, /Disallow:/);
+  assert.match(robots, /^Disallow: \/stats$/m);
+  assert.match(robots, /^Disallow: \/api\/$/m);
   assert.match(robots, /^Sitemap: https:\/\/aihateit\.com\/sitemap\.xml$/m);
-  assert.equal(robots, "User-agent: *\nAllow: /\nAllow: /ads.txt\n\nSitemap: https://aihateit.com/sitemap.xml\n");
+  assert.equal(
+    robots,
+    "User-agent: *\nAllow: /\nAllow: /ads.txt\nDisallow: /stats\nDisallow: /api/\n\nSitemap: https://aihateit.com/sitemap.xml\n"
+  );
 });
 
 test("production ads.txt has exactly one Google authorized seller line", () => {
