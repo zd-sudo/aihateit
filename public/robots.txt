@@ -1,5 +1,7 @@
 User-agent: *
 Allow: /
 Allow: /ads.txt
+Disallow: /stats
+Disallow: /api/
 
 Sitemap: https://aihateit.com/sitemap.xml
