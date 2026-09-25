@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleHate } from "../lib/handler.mjs";
+import { createFileHitStore, handleHit, handleStats } from "../lib/hits.mjs";
 import { handleHateShare, loadNotFoundHtml } from "../lib/share.mjs";
 import { createFileStore } from "../lib/store.mjs";
 import { readFileSync } from "node:fs";
@@ -11,6 +12,7 @@ const root = join(fileURLToPath(new URL("..", import.meta.url)));
 const publicDir = join(root, "public");
 const port = Number(process.env.PORT) || 4173;
 const store = createFileStore(process.env.HATE_STORE_PATH || join(root, ".data/hates.json"));
+const hitStore = createFileHitStore(process.env.HIT_STORE_PATH || join(root, ".data/hits.json"));
 const seed = JSON.parse(readFileSync(join(root, "data/seed.json"), "utf8"));
 const indexHtml = readFileSync(join(publicDir, "index.html"), "utf8");
 const notFoundHtml = loadNotFoundHtml();
@@ -66,6 +68,25 @@ const server = createServer(async (req, res) => {
     if (path === "/api/hate" || path === "/api/hate/" || path === "/api/hate/like" || path === "/api/hate/like/") {
       const request = await toWebRequest(req);
       const response = await handleHate(request, store, seed);
+      res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+      res.end(Buffer.from(await response.arrayBuffer()));
+      return;
+    }
+
+    if (path === "/api/hit" || path === "/api/hit/") {
+      const request = await toWebRequest(req);
+      const response = await handleHit(request, hitStore);
+      res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+      res.end(Buffer.from(await response.arrayBuffer()));
+      return;
+    }
+
+    if (path === "/stats" || path === "/stats/") {
+      const request = await toWebRequest(req);
+      const response = await handleStats(request, hitStore, {
+        statsKey: process.env.STATS_KEY || "",
+        notFoundHtml,
+      });
       res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
       res.end(Buffer.from(await response.arrayBuffer()));
       return;

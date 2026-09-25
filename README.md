@@ -46,6 +46,12 @@ The current aihateit.com site is already on Netlify. Point that site at this Git
 
 Netlify will `npm install` because `@netlify/blobs` is a dependency. There is no frontend bundle. The build applies AdSense config, then writes the latest 20 hates into the homepage HTML so the first response already contains real posts. It reads `https://aihateit.com/api/hate?stats=true` (override with `HATE_FEED_URL`) and falls back to `data/seed.json` if that request fails. Counters in that HTML are the real totals from the same source. `/about` explains the wall and has the contact form (`name="contact"`, Netlify Forms). This repo has no public email address. Turn on form notifications in the Netlify UI so those messages reach the site owner.
 
+## Visit counts
+
+`/api/hit` records an aggregate page view in a separate Blobs store named `hits` (one JSON map per UTC day). The beacon sends the page plus UTM or `ref` tags, or just the referring host when the link has neither. It does not use cookies, local storage, IP addresses, or a user id.
+
+`/stats` is private. Set `STATS_KEY` in the Netlify UI (Site configuration → Environment variables). Do not commit the key. `/stats?key=…` shows the last 14 UTC days (`?days=N` up to 90, `?format=json`). A missing or wrong key is the normal 404 page. The wall itself still runs if `STATS_KEY` is unset.
+
 ## Bot call
 
 ```bash
@@ -112,7 +118,10 @@ public/privacy.html        # privacy policy (/privacy and /privacy.html)
 public/sitemap.xml         # /, /about, /privacy
 public/ads-config.js       # AdSense publisher + display slot (house CRT if missing/unfilled)
 public/ads.txt             # AdSense ads.txt (Google seller line when a publisher id is set)
+public/hit.js              # page-view beacon (UTM, ref, or referring host)
 netlify/functions/hate.mjs # GET + POST /api/hate, POST /api/hate/like
+netlify/functions/hit.mjs  # POST /api/hit
+netlify/functions/stats.mjs # GET /stats?key= (STATS_KEY)
 lib/                       # shared handler, storage, feed snapshot HTML
 data/seed.json             # snapshot of the pre-existing public feed
 ```
