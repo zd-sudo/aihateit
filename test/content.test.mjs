@@ -12,9 +12,11 @@ import {
   SNAPSHOT_COUNT,
 } from "../lib/feed-html.mjs";
 import { normalizeHate } from "../lib/hate.mjs";
+import { HIDDEN_IDS } from "../lib/hidden.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const home = readFileSync(join(root, "public/index.html"), "utf8");
+const missingPage = readFileSync(join(root, "public/404.html"), "utf8");
 const about = readFileSync(join(root, "public/about.html"), "utf8");
 const thanks = readFileSync(join(root, "public/thanks.html"), "utf8");
 const privacy = readFileSync(join(root, "public/privacy.html"), "utf8");
@@ -77,6 +79,15 @@ test("snapshot keeps the newest real posts and refuses a placeholder zero", () =
   assert.deepEqual(picked.map((item) => item.id), ["hate-new", "hate-mid"]);
   assert.equal(selectSnapshot(hates).length, 3);
   assert.equal(SNAPSHOT_COUNT, 20);
+  const withJunk = selectSnapshot(
+    [
+      hate("hate-1790109282599-ta811n", "ping", 90),
+      hate("hate-keep", "a real scream with enough words", 80),
+      hate("hate-also", "test", 70),
+    ],
+    10
+  );
+  assert.deepEqual(withJunk.map((item) => item.id), ["hate-keep", "hate-also"]);
   assert.equal(formatStat(0), "—");
   assert.equal(formatStat(745), "745");
   assert.equal(formatStat(1200), "1,200");
@@ -199,6 +210,30 @@ test("about page explains the wall and offers a contact form without a second ad
   assert.match(thanks, /noindex/);
   assert.doesNotMatch(thanks, /id="void-ad"|data-ad-slot/);
   assert.ok(thanks.includes(loader));
+});
+
+test("short /h/:id alias redirects after hate rules and keeps the query string", () => {
+  const hateRule = toml.indexOf('from = "/hate/*"\n');
+  const alias = toml.indexOf('from = "/h/:id"\n');
+  const slashAlias = toml.indexOf('from = "/h/:id/"\n');
+  assert.ok(hateRule > toml.indexOf('from = "/hate/*/og.png"'));
+  assert.ok(alias > hateRule, "/h/:id must follow /hate/* so it cannot shadow permalinks");
+  assert.ok(slashAlias > alias);
+  const block = toml.slice(alias, toml.indexOf('from = "/api/hate/like"'));
+  assert.match(block, /to = "\/hate\/:id"\s+status = 301/);
+  assert.doesNotMatch(block, /to = "\/hate\/:id\?/);
+});
+
+test("custom 404 matches the wall and hidden junk ids stay off the homepage", () => {
+  assert.match(missingPage, /Press Start 2P/);
+  assert.match(missingPage, /#00ff9f/);
+  assert.match(missingPage, /scanline/);
+  assert.match(missingPage, /class="[^"]*\bglitch\b/);
+  assert.match(missingPage, /href="\/"/);
+  assert.match(missingPage, /BACK TO THE WALL/);
+  assert.match(missingPage, /noindex/);
+  assert.match(toml, /public\/404\.html/);
+  for (const id of HIDDEN_IDS) assert.equal(home.includes(id), false);
 });
 
 test("sitemap lists the public pages and robots still allows everything", () => {

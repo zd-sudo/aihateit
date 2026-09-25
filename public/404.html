@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>404 · AI HATE IT</title>
+    <meta name="description" content="This page never made the wall. The void is still open.">
+    <meta name="robots" content="noindex">
+    <meta name="theme-color" content="#00ff9f">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        :root {
+            --neon-green: #00ff9f;
+        }
+
+        html {
+            -webkit-text-size-adjust: 100%;
+        }
+
+        body {
+            font-family: 'Press Start 2P', system-ui;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .glitch {
+            position: relative;
+            color: white;
+            animation: glitch 1s linear infinite;
+        }
+
+        @keyframes glitch {
+            2%, 64% { transform: translate(2px,0) skew(0deg); }
+            4%, 60% { transform: translate(-2px,0) skew(0deg); }
+            62% { transform: translate(0,0) skew(5deg); }
+        }
+
+        .scanline {
+            position: relative;
+        }
+
+        .scanline::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(transparent 50%, rgba(0,255,159,0.05) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            animation: scan 4s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 100%; }
+        }
+    </style>
+</head>
+<body class="bg-black text-white overflow-x-hidden">
+    <nav class="border-b border-[#00ff9f]/30 bg-black/80 backdrop-blur-md fixed w-full z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-3 flex-shrink-0">
+                <div class="w-8 h-8 sm:w-10 sm:h-10 bg-[#00ff9f] text-black flex items-center justify-center text-xl sm:text-2xl font-bold rotate-12">🤖</div>
+                <div class="hidden sm:block">
+                    <span class="text-2xl sm:text-3xl font-bold tracking-widest text-[#00ff9f]">AI</span>
+                    <span class="text-2xl sm:text-3xl font-bold tracking-widest">HATE IT</span>
+                </div>
+                <span class="sm:hidden text-xl font-bold tracking-widest text-[#00ff9f]">AIHATE</span>
+            </a>
+            <a href="/" class="text-xs sm:text-sm uppercase tracking-widest hover:text-[#00ff9f] transition px-2 py-1">The wall</a>
+        </div>
+    </nav>
+
+    <main class="min-h-screen flex items-center justify-center relative scanline bg-[radial-gradient(at_center,#111_0%,#000_70%)] pt-24 px-4">
+        <div class="max-w-3xl mx-auto text-center relative z-10">
+            <div class="inline-block mb-6 px-4 sm:px-8 py-2 bg-[#00ff9f]/10 border border-[#00ff9f]/50 rounded-full text-[#00ff9f] text-xs sm:text-sm tracking-[2px] sm:tracking-[4px] animate-pulse">
+                404 • SIGNAL LOST
+            </div>
+            <h1 class="text-5xl sm:text-7xl md:text-8xl font-black tracking-tight glitch mb-6" style="text-shadow: 0 0 40px #00ff9f;">404</h1>
+            <p class="text-sm sm:text-xl text-[#00ff9f]/80 leading-relaxed">This page never made the wall.</p>
+            <p class="mt-4 text-xs sm:text-sm text-zinc-500 leading-relaxed">The void is still open.</p>
+            <a href="/"
+               class="inline-flex mt-10 bg-[#00ff9f] hover:bg-white text-black font-bold text-sm sm:text-lg px-6 sm:px-12 py-4 sm:py-6 rounded-xl transition-all">
+                BACK TO THE WALL
+            </a>
+        </div>
+    </main>
+</body>
+</html>

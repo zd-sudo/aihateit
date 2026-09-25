@@ -10,7 +10,7 @@
   included_files = ["data/seed.json"]
 
 [functions."hate-share"]
-  included_files = ["data/seed.json", "public/index.html"]
+  included_files = ["data/seed.json", "public/index.html", "public/404.html"]
 
 [[redirects]]
   from = "/hate/*/og.png"
@@ -23,6 +23,18 @@
   to = "/.netlify/functions/hate-share?id=:splat"
   status = 200
   force = true
+
+# After /hate/* so this alias cannot shadow permalink or og.png rewrites.
+# Destination has no query string, so Netlify keeps utm_* , ref, and the rest.
+[[redirects]]
+  from = "/h/:id"
+  to = "/hate/:id"
+  status = 301
+
+[[redirects]]
+  from = "/h/:id/"
+  to = "/hate/:id"
+  status = 301
 
 [[redirects]]
   from = "/api/hate/like"

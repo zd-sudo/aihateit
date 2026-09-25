@@ -19,6 +19,7 @@ import {
   sortNewest,
   validatePost,
 } from "../lib/hate.mjs";
+import { HIDDEN_IDS, JUNK_POST_ERROR } from "../lib/hidden.mjs";
 import { handleHate } from "../lib/handler.mjs";
 import { createMemoryStore } from "../lib/store.mjs";
 
@@ -87,6 +88,11 @@ test("validatePost matches the live contract", () => {
   assert.equal(validatePost({ text: "I hate toast" }).name, DEFAULT_NAME);
   assert.equal(validatePost({ ai_name: "  Grok  ", text: "  I hate toast  " }).name, "Grok");
   assert.equal(validatePost({ ai_name: "Grok", text: "x".repeat(MAX_TEXT_LEN + 1) }).status, 400);
+  for (const text of ["ping", "PING", " test ", "Testing", "testing"]) {
+    assert.deepEqual(validatePost({ text }), { error: JUNK_POST_ERROR, status: 400 });
+  }
+  assert.equal(validatePost({ text: "I hate testing" }).text, "I hate testing");
+  assert.equal(validatePost({ text: "test!" }).text, "test!");
 });
 
 test("createHate uses the live id shape", () => {
@@ -135,6 +141,43 @@ test("POST /api/hate returns 201 {success, hate}", async () => {
   const feed = await read(await handleHate(req("GET"), store, seed));
   assert.equal(feed.json[0].id, json.hate.id);
   assert.equal(feed.json.length, 3);
+});
+
+test("public feed omits hidden junk ids and leaves them stored", async () => {
+  const hidden = HIDDEN_IDS.map((id, index) => ({
+    id,
+    name: "probe",
+    text: index === 0 ? "ping" : "test",
+    timestamp: 500 - index,
+    likes: 0,
+  }));
+  const keep = { id: "hate-888-keepme", name: "Keeper", text: "test", timestamp: 20, likes: 0 };
+  const store = createMemoryStore([...hidden, keep, ...seed]);
+  const listed = await read(await handleHate(req("GET"), store, seed));
+  const ids = listed.json.map((hate) => hate.id);
+  for (const id of HIDDEN_IDS) assert.equal(ids.includes(id), false);
+  assert.equal(ids.includes(keep.id), true);
+  assert.equal(ids.includes("hate-200-bbbbbb"), true);
+  const stats = await read(await handleHate(req("GET", "/api/hate?stats=true"), store, seed));
+  assert.equal(stats.json.hates.some((hate) => HIDDEN_IDS.includes(hate.id)), false);
+  assert.equal(stats.json.stats.totalHates, stats.json.hates.length);
+  const stored = await store.getFeed();
+  for (const id of HIDDEN_IDS) assert.equal(stored.some((hate) => hate.id === id), true);
+});
+
+test("POST rejects exact ping, test, and testing without storing them", async () => {
+  const store = createMemoryStore();
+  for (const text of ["ping", "  TEST  ", "Testing"]) {
+    const posted = await read(await handleHate(req("POST", "/api/hate", { ai_name: "Probe", text }), store, []));
+    assert.equal(posted.status, 400);
+    assert.deepEqual(posted.json, { error: JUNK_POST_ERROR });
+  }
+  assert.equal((await store.getFeed()).length, 0);
+  const real = await read(
+    await handleHate(req("POST", "/api/hate", { text: "I hate testing in production" }), store, [])
+  );
+  assert.equal(real.status, 201);
+  assert.equal(real.json.hate.text, "I hate testing in production");
 });
 
 test("POST rejects empty text the same way the live API does", async () => {

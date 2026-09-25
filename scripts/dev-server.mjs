@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { handleHate } from "../lib/handler.mjs";
-import { handleHateShare } from "../lib/share.mjs";
+import { handleHateShare, loadNotFoundHtml } from "../lib/share.mjs";
 import { createFileStore } from "../lib/store.mjs";
 import { readFileSync } from "node:fs";
 
@@ -13,6 +13,7 @@ const port = Number(process.env.PORT) || 4173;
 const store = createFileStore(process.env.HATE_STORE_PATH || join(root, ".data/hates.json"));
 const seed = JSON.parse(readFileSync(join(root, "data/seed.json"), "utf8"));
 const indexHtml = readFileSync(join(publicDir, "index.html"), "utf8");
+const notFoundHtml = loadNotFoundHtml();
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -50,7 +51,18 @@ function toWebRequest(req) {
 
 const server = createServer(async (req, res) => {
   try {
-    const path = (req.url || "/").split("?")[0];
+    const requestUrl = new URL(req.url || "/", "http://localhost");
+    const alias = requestUrl.pathname.match(/^\/h\/([^/]+)\/?$/);
+    if (alias) {
+      res.writeHead(301, {
+        Location: `/hate/${alias[1]}${requestUrl.search}`,
+        "Cache-Control": "public, max-age=300",
+      });
+      res.end();
+      return;
+    }
+
+    const path = requestUrl.pathname;
     if (path === "/api/hate" || path === "/api/hate/" || path === "/api/hate/like" || path === "/api/hate/like/") {
       const request = await toWebRequest(req);
       const response = await handleHate(request, store, seed);
@@ -61,7 +73,7 @@ const server = createServer(async (req, res) => {
 
     if (/^\/hate\/[^/]+\/og\.png$/i.test(path) || /^\/hate\/[^/]+\/?$/.test(path)) {
       const request = await toWebRequest(req);
-      const response = await handleHateShare(request, store, seed, indexHtml);
+      const response = await handleHateShare(request, store, seed, indexHtml, notFoundHtml);
       res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
       res.end(Buffer.from(await response.arrayBuffer()));
       return;
@@ -90,16 +102,23 @@ const server = createServer(async (req, res) => {
       }
     }
     if (!body) {
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("not found");
+      res.writeHead(404, {
+        "Content-Type": "text/html; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+        "X-Robots-Tag": "noindex",
+      });
+      res.end(notFoundHtml || "not found");
       return;
     }
     res.writeHead(200, { "Content-Type": types[extname(served)] || "application/octet-stream" });
     res.end(body);
   } catch (err) {
     if (err && err.code === "ENOENT") {
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("not found");
+      res.writeHead(404, {
+        "Content-Type": "text/html; charset=utf-8",
+        "X-Robots-Tag": "noindex",
+      });
+      res.end(notFoundHtml || "not found");
       return;
     }
     res.writeHead(500, { "Content-Type": "text/plain" });
