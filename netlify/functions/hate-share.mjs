@@ -31,12 +31,12 @@ function loadSeed() {
   return [];
 }
 
-function loadIndexHtml() {
+function loadPage(name) {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(here, "../../public/index.html"),
-    join(process.cwd(), "public/index.html"),
-    join(here, "public/index.html"),
+    join(here, "../../public", name),
+    join(process.cwd(), "public", name),
+    join(here, "public", name),
   ];
   for (const path of candidates) {
     try {
@@ -48,10 +48,19 @@ function loadIndexHtml() {
   return "";
 }
 
+function loadIndexHtml() {
+  return loadPage("index.html");
+}
+
+function loadNotFoundHtml() {
+  return loadPage("404.html");
+}
+
 const seed = loadSeed();
 const indexHtml = loadIndexHtml();
+const notFoundHtml = loadNotFoundHtml();
 
 export default async (request) => {
   const store = await openStore();
-  return handleHateShare(request, store, seed, indexHtml);
+  return handleHateShare(request, store, seed, indexHtml, notFoundHtml);
 };

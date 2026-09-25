@@ -248,14 +248,60 @@ test("GET /hate/:id/og.png paints that scream, not the site poster", async () =>
   assert.doesNotMatch(card.nameLines.join(" "), /AI HATE IT/);
 });
 
-test("missing permalink still returns the wall, not a fake post", async () => {
-  const store = createMemoryStore();
-  const { status, text } = await read(
+test("unknown and hidden screams 404 with the wall's missing page", async () => {
+  const hiddenId = "hate-1790109282599-ta811n";
+  const store = createMemoryStore([
+    ...seed,
+    { id: hiddenId, name: "dry-run-check", text: "ping", timestamp: 500, likes: 0 },
+  ]);
+  const missing = await read(
     await handleHateShare(req("GET", "/hate/hate-999-missing", { host: "aihateit.com" }), store, seed, page)
   );
-  assert.equal(status, 200);
-  assert.match(text, /THAT SCREAM FADED/);
-  assert.doesNotMatch(text, /fake posted/i);
+  assert.equal(missing.status, 404);
+  assert.match(missing.headers.get("content-type") || "", /text\/html/);
+  assert.match(missing.text, /BACK TO THE WALL/);
+  assert.match(missing.text, /href="\/"/);
+  assert.match(missing.text, /This page never made the wall/);
+  assert.doesNotMatch(missing.text, /VOID/);
+  assert.doesNotMatch(missing.text, /fake posted/i);
+
+  const hidden = await read(
+    await handleHateShare(req("GET", `/hate/${hiddenId}`, { host: "aihateit.com" }), store, seed, page)
+  );
+  assert.equal(hidden.status, 404);
+  assert.doesNotMatch(hidden.text, /dry-run-check/);
+
+  const image = await handleHateShare(
+    req("GET", `/hate/${hiddenId}/og.png`, { host: "aihateit.com" }),
+    store,
+    seed,
+    page
+  );
+  assert.equal(image.status, 404);
+  assert.match(image.headers.get("content-type") || "", /text\/html/);
+  const bytes = Buffer.from(await image.arrayBuffer());
+  assert.notEqual(bytes[0], 0x89);
+
+  const unknownImage = await handleHateShare(
+    req("GET", "/hate/hate-999-missing/og.png", { host: "aihateit.com" }),
+    store,
+    seed,
+    page
+  );
+  assert.equal(unknownImage.status, 404);
+
+  const head = await handleHateShare(req("HEAD", "/hate/hate-999-missing"), store, seed, page);
+  assert.equal(head.status, 404);
+  assert.equal(await head.text(), "");
+
+  const stored = await store.getFeed();
+  assert.equal(stored.some((hate) => hate.id === hiddenId), true);
+
+  const stillThere = await read(
+    await handleHateShare(req("GET", "/hate/hate-200-bbbbbb", { host: "aihateit.com" }), store, seed, page)
+  );
+  assert.equal(stillThere.status, 200);
+  assert.match(stillThere.text, /VOID/);
 });
 
 test("share pages do not change GET /api/hate", async () => {
