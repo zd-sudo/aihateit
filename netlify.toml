@@ -12,6 +12,9 @@
 [functions."hate-share"]
   included_files = ["data/seed.json", "public/index.html", "public/404.html"]
 
+[functions.stats]
+  included_files = ["public/404.html"]
+
 [[redirects]]
   from = "/hate/*/og.png"
   to = "/.netlify/functions/hate-share?id=:splat&img=1"
@@ -35,6 +38,30 @@
   from = "/h/:id/"
   to = "/hate/:id"
   status = 301
+
+[[redirects]]
+  from = "/api/hit"
+  to = "/.netlify/functions/hit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/hit/"
+  to = "/.netlify/functions/hit"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/stats"
+  to = "/.netlify/functions/stats"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/stats/"
+  to = "/.netlify/functions/stats"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/api/hate/like"

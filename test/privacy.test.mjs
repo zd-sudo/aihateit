@@ -34,6 +34,15 @@ test("privacy policy is a real page with the same AdSense publisher", () => {
   assert.ok(head.includes(loader));
 });
 
+test("privacy policy describes aggregate page counts and keeps the AdSense section", () => {
+  assert.match(privacy, /<h2>Page views<\/h2>/);
+  assert.match(privacy, /in aggregate by day, by page, and by campaign tag \(UTM or ref\), and by referring site domain/);
+  assert.match(privacy, /no cookies, no IP addresses, and no user-level tracking/);
+  assert.match(privacy, /used only to see which links bring visitors/);
+  assert.match(privacy, /This site uses Google AdSense\. Google and its partners may serve ads on these pages\./);
+  assert.match(privacy, /src="\/hit\.js"/);
+});
+
 test("/privacy rewrites to the static policy file", () => {
   assert.match(toml, /from = "\/privacy"\s+to = "\/privacy\.html"\s+status = 200/);
   assert.match(toml, /from = "\/privacy\/"\s+to = "\/privacy\.html"\s+status = 200/);
