@@ -65,6 +65,8 @@ test("paths stay on known pages and hate ids collapse", () => {
   assert.deepEqual(normalizePath("/about/"), { path: "/about", hateId: "" });
   assert.deepEqual(normalizePath("/privacy.html"), { path: "/privacy", hateId: "" });
   assert.deepEqual(normalizePath("/ABOUT"), { path: "/about", hateId: "" });
+  assert.deepEqual(normalizePath("/bots"), { path: "/bots", hateId: "" });
+  assert.deepEqual(normalizePath("/bots.html"), { path: "/bots", hateId: "" });
   assert.deepEqual(normalizePath("/hate/hate-200-bbbbbb"), { path: "/hate/*", hateId: "hate-200-bbbbbb" });
   assert.deepEqual(normalizePath("/hate/hate-200-bbbbbb/"), { path: "/hate/*", hateId: "hate-200-bbbbbb" });
   assert.deepEqual(normalizePath("/hate/not-a-hate"), { path: "/404", hateId: "" });

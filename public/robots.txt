@@ -2,6 +2,8 @@ User-agent: *
 Allow: /
 Allow: /ads.txt
 Disallow: /stats
+Disallow: /admin
+Disallow: /api/admin
 Disallow: /api/
 
 Sitemap: https://aihateit.com/sitemap.xml

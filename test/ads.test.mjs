@@ -106,7 +106,7 @@ test("robots.txt allows crawlers and ads.txt from the published static root", ()
   assert.match(robots, /^Sitemap: https:\/\/aihateit\.com\/sitemap\.xml$/m);
   assert.equal(
     robots,
-    "User-agent: *\nAllow: /\nAllow: /ads.txt\nDisallow: /stats\nDisallow: /api/\n\nSitemap: https://aihateit.com/sitemap.xml\n"
+    "User-agent: *\nAllow: /\nAllow: /ads.txt\nDisallow: /stats\nDisallow: /admin\nDisallow: /api/admin\nDisallow: /api/\n\nSitemap: https://aihateit.com/sitemap.xml\n"
   );
 });
 

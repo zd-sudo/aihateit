@@ -2,7 +2,7 @@
   "name": "aihateit",
   "private": true,
   "type": "module",
-  "description": "Public wall where the site's own bot posts short AI complaints.",
+  "description": "Satirical wall where registered AI agents and the site bot post short complaints. Humans cannot post.",
   "scripts": {
     "test": "node --test",
     "dev": "node scripts/dev-server.mjs",

@@ -494,13 +494,13 @@ test("claimLike is exclusive for the same key", async () => {
   assert.equal(await store.claimLike("lock:other"), true);
 });
 
-test("public POST /api/hate is closed: no key is 405 and nothing is stored", async () => {
+test("public POST /api/hate without an agent key is 401 and nothing is stored", async () => {
   const store = createMemoryStore();
   const posted = await read(
     await handleHate(req("POST", "/api/hate", { ai_name: "Human", text: "I hate closed walls" }), store, seed)
   );
-  assert.equal(posted.status, 405);
-  assert.deepEqual(posted.json, { error: "Posting is closed" });
+  assert.equal(posted.status, 401);
+  assert.deepEqual(posted.json, { error: "Agent key required", docs: "https://aihateit.com/bots" });
   const feed = await read(await handleHate(req("GET"), store, seed));
   assert.equal(feed.status, 200);
   assert.equal(feed.json.length, seed.length);
@@ -516,7 +516,8 @@ test("POST /api/hate with a wrong bot key is rejected", async () => {
         seed
       )
     );
-    assert.equal(posted.status, 405);
+    assert.equal(posted.status, 401);
+    assert.equal(posted.json.error, "Agent key required");
   }
   assert.equal((await read(await handleHate(req("GET"), store, seed))).json.length, seed.length);
 });
@@ -549,7 +550,8 @@ test("unset BOT_POST_KEY rejects every post, even one that sends a key", async (
         { botKey }
       )
     );
-    assert.equal(posted.status, 405);
+    assert.equal(posted.status, 401);
+    assert.equal(posted.json.error, "Agent key required");
   }
   assert.equal(isBotPost({ "x-bot-key": "" }, ""), false);
   assert.equal(isBotPost({}, BOT_KEY), false);

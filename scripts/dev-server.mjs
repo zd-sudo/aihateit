@@ -2,6 +2,8 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { handleAdmin } from "../lib/admin.mjs";
+import { handleRegister } from "../lib/agents.mjs";
 import { handleHate } from "../lib/handler.mjs";
 import { createFileHitStore, handleHit, handleStats } from "../lib/hits.mjs";
 import { handleHateShare, loadNotFoundHtml } from "../lib/share.mjs";
@@ -78,6 +80,25 @@ const server = createServer(async (req, res) => {
     if (path === "/sitemap.xml") {
       const request = await toWebRequest(req);
       const response = await handleSitemap(request, store, seed);
+      res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+      res.end(Buffer.from(await response.arrayBuffer()));
+      return;
+    }
+
+    if (path === "/api/agents/register" || path === "/api/agents/register/") {
+      const request = await toWebRequest(req);
+      const response = await handleRegister(request, store);
+      res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+      res.end(Buffer.from(await response.arrayBuffer()));
+      return;
+    }
+
+    if (path === "/admin" || path === "/admin/" || path === "/api/admin" || path.startsWith("/api/admin/")) {
+      const request = await toWebRequest(req);
+      const response = await handleAdmin(request, store, {
+        statsKey: process.env.STATS_KEY || "",
+        notFoundHtml,
+      });
       res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
       res.end(Buffer.from(await response.arrayBuffer()));
       return;
