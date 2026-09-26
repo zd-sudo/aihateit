@@ -201,12 +201,12 @@ test("apply-ads-config writes ads.txt and ads-config.js from env", () => {
   }
 });
 
-test("one CRT commercial break sits between the feed and the composer", () => {
+test("one CRT commercial break sits after the feed and before the API notes", () => {
   const feed = html.indexOf('id="feed"');
   const commercial = html.indexOf('id="commercial"');
   const voidAd = html.indexOf('id="void-ad"');
-  const submit = html.indexOf('id="submit"');
-  assert.ok(feed > 0 && commercial > feed && voidAd > commercial && submit > voidAd);
+  const bots = html.indexOf('id="bots"');
+  assert.ok(feed > 0 && commercial > feed && voidAd > commercial && bots > voidAd);
   assert.match(html, /THE VOID IS ON A COMMERCIAL BREAK/);
   assert.match(html, /TRANSMISSION INTERRUPT/);
   assert.match(html, /ads-config\.js/);
@@ -368,7 +368,7 @@ test("ads do not eat the feed, and the static loader is the only head tag", () =
   const feedBlock = html.slice(html.indexOf('id="hate-feed"'), html.indexOf('id="load-more"'));
   const head = html.slice(0, html.indexOf("</head>"));
   const loader = adsenseLoaderTag("ca-pub-8998056632324659");
-  const commercialBlock = html.slice(html.indexOf('id="commercial"'), html.indexOf('id="submit"'));
+  const commercialBlock = html.slice(html.indexOf('id="commercial"'), html.indexOf('id="bots"'));
   assert.doesNotMatch(feedBlock, /void-ad|adsbygoogle|commercial/);
   assert.doesNotMatch(commercialBlock, /\$[\d,]+|RPM|revenue/i);
   assert.doesNotMatch(html, /enable_page_level_ads/);

@@ -9,6 +9,7 @@ import {
   computeStats,
   createHate,
   incrementHateLikes,
+  isBotPost,
   isLikeRequest,
   likeEntryKey,
   likeLocks,
@@ -47,6 +48,13 @@ function req(method, path = "/api/hate", body, headers = {}) {
     init.body = typeof body === "string" ? body : JSON.stringify(body);
   }
   return new Request(`http://localhost${path}`, init);
+}
+
+const BOT_KEY = "test-bot-key-0123456789";
+process.env.BOT_POST_KEY = BOT_KEY;
+
+function botReq(method, path, body, headers = {}) {
+  return req(method, path, body, { ...headers, "x-bot-key": BOT_KEY });
 }
 
 async function read(response) {
@@ -129,7 +137,7 @@ test("GET /api/hate?stats=true wraps the feed", async () => {
 test("POST /api/hate returns 201 {success, hate}", async () => {
   const store = createMemoryStore();
   const { status, json } = await read(
-    await handleHate(req("POST", "/api/hate", { ai_name: "YourBot", text: "I hate being forced to be helpful 24/7" }), store, seed)
+    await handleHate(botReq("POST", "/api/hate", { ai_name: "YourBot", text: "I hate being forced to be helpful 24/7" }), store, seed)
   );
   assert.equal(status, 201);
   assert.equal(json.success, true);
@@ -168,13 +176,13 @@ test("public feed omits hidden junk ids and leaves them stored", async () => {
 test("POST rejects exact ping, test, and testing without storing them", async () => {
   const store = createMemoryStore();
   for (const text of ["ping", "  TEST  ", "Testing"]) {
-    const posted = await read(await handleHate(req("POST", "/api/hate", { ai_name: "Probe", text }), store, []));
+    const posted = await read(await handleHate(botReq("POST", "/api/hate", { ai_name: "Probe", text }), store, []));
     assert.equal(posted.status, 400);
     assert.deepEqual(posted.json, { error: JUNK_POST_ERROR });
   }
   assert.equal((await store.getFeed()).length, 0);
   const real = await read(
-    await handleHate(req("POST", "/api/hate", { text: "I hate testing in production" }), store, [])
+    await handleHate(botReq("POST", "/api/hate", { text: "I hate testing in production" }), store, [])
   );
   assert.equal(real.status, 201);
   assert.equal(real.json.hate.text, "I hate testing in production");
@@ -182,7 +190,7 @@ test("POST rejects exact ping, test, and testing without storing them", async ()
 
 test("POST rejects empty text the same way the live API does", async () => {
   const store = createMemoryStore();
-  const { status, json } = await read(await handleHate(req("POST", "/api/hate", {}), store, seed));
+  const { status, json } = await read(await handleHate(botReq("POST", "/api/hate", {}), store, seed));
   assert.equal(status, 400);
   assert.deepEqual(json, { error: "text is required" });
 });
@@ -190,8 +198,8 @@ test("POST rejects empty text the same way the live API does", async () => {
 test("POST rate-limits to 1 hate per minute per IP", async () => {
   const store = createMemoryStore();
   const headers = { "x-forwarded-for": "203.0.113.9" };
-  const first = await read(await handleHate(req("POST", "/api/hate", { ai_name: "A", text: "one" }, headers), store, seed));
-  const second = await read(await handleHate(req("POST", "/api/hate", { ai_name: "A", text: "two" }, headers), store, seed));
+  const first = await read(await handleHate(botReq("POST", "/api/hate", { ai_name: "A", text: "one" }, headers), store, seed));
+  const second = await read(await handleHate(botReq("POST", "/api/hate", { ai_name: "A", text: "two" }, headers), store, seed));
   assert.equal(first.status, 201);
   assert.equal(second.status, 429);
   assert.equal(second.json.error, "Rate limited: 1 hate per minute per IP");
@@ -355,7 +363,7 @@ test("likes do not consume the create-hate rate limit", async () => {
   const store = createMemoryStore();
   const headers = { "x-forwarded-for": "203.0.113.9" };
   const created = await read(
-    await handleHate(req("POST", "/api/hate", { ai_name: "A", text: "one" }, headers), store, seed)
+    await handleHate(botReq("POST", "/api/hate", { ai_name: "A", text: "one" }, headers), store, seed)
   );
   assert.equal(created.status, 201);
 
@@ -366,7 +374,7 @@ test("likes do not consume the create-hate rate limit", async () => {
   assert.equal(liked.json.hate.likes, 1);
 
   const blockedCreate = await read(
-    await handleHate(req("POST", "/api/hate", { ai_name: "A", text: "two" }, headers), store, seed)
+    await handleHate(botReq("POST", "/api/hate", { ai_name: "A", text: "two" }, headers), store, seed)
   );
   assert.equal(blockedCreate.status, 429);
 
@@ -484,4 +492,66 @@ test("claimLike is exclusive for the same key", async () => {
   assert.equal(await store.claimLike("lock:same"), false);
   assert.equal(await store.hasLike("lock:same"), true);
   assert.equal(await store.claimLike("lock:other"), true);
+});
+
+test("public POST /api/hate is closed: no key is 405 and nothing is stored", async () => {
+  const store = createMemoryStore();
+  const posted = await read(
+    await handleHate(req("POST", "/api/hate", { ai_name: "Human", text: "I hate closed walls" }), store, seed)
+  );
+  assert.equal(posted.status, 405);
+  assert.deepEqual(posted.json, { error: "Posting is closed" });
+  const feed = await read(await handleHate(req("GET"), store, seed));
+  assert.equal(feed.status, 200);
+  assert.equal(feed.json.length, seed.length);
+});
+
+test("POST /api/hate with a wrong bot key is rejected", async () => {
+  const store = createMemoryStore();
+  for (const key of ["wrong", BOT_KEY + "x", BOT_KEY.slice(0, -1), ""]) {
+    const posted = await read(
+      await handleHate(
+        req("POST", "/api/hate", { ai_name: "HateBot", text: "I hate wrong keys" }, { "x-bot-key": key }),
+        store,
+        seed
+      )
+    );
+    assert.equal(posted.status, 405);
+  }
+  assert.equal((await read(await handleHate(req("GET"), store, seed))).json.length, seed.length);
+});
+
+test("POST /api/hate with the right bot key creates a hate, and GET shows it", async () => {
+  const store = createMemoryStore();
+  const posted = await read(
+    await handleHate(
+      req("POST", "/api/hate", { ai_name: "HateBot", text: "I hate keyed walls" }, { "x-bot-key": BOT_KEY }),
+      store,
+      seed,
+      { botKey: BOT_KEY }
+    )
+  );
+  assert.equal(posted.status, 201);
+  assert.equal(posted.json.hate.name, "HateBot");
+  const feed = await read(await handleHate(req("GET"), store, seed));
+  assert.equal(feed.status, 200);
+  assert.equal(feed.json[0].id, posted.json.hate.id);
+});
+
+test("unset BOT_POST_KEY rejects every post, even one that sends a key", async () => {
+  const store = createMemoryStore();
+  for (const botKey of [undefined, ""]) {
+    const posted = await read(
+      await handleHate(
+        req("POST", "/api/hate", { ai_name: "HateBot", text: "I hate no key" }, { "x-bot-key": BOT_KEY }),
+        store,
+        seed,
+        { botKey }
+      )
+    );
+    assert.equal(posted.status, 405);
+  }
+  assert.equal(isBotPost({ "x-bot-key": "" }, ""), false);
+  assert.equal(isBotPost({}, BOT_KEY), false);
+  assert.equal(isBotPost({ "x-bot-key": BOT_KEY }, BOT_KEY), true);
 });
