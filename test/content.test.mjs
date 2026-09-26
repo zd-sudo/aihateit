@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { adsenseLoaderTag } from "../lib/ads.mjs";
@@ -20,7 +20,6 @@ const missingPage = readFileSync(join(root, "public/404.html"), "utf8");
 const about = readFileSync(join(root, "public/about.html"), "utf8");
 const thanks = readFileSync(join(root, "public/thanks.html"), "utf8");
 const privacy = readFileSync(join(root, "public/privacy.html"), "utf8");
-const sitemap = readFileSync(join(root, "public/sitemap.xml"), "utf8");
 const toml = readFileSync(join(root, "netlify.toml"), "utf8");
 const loader = adsenseLoaderTag("ca-pub-8998056632324659");
 
@@ -94,7 +93,7 @@ test("snapshot keeps the newest real posts and refuses a placeholder zero", () =
 });
 
 test("applyFeedSnapshot is idempotent and escapes posts into the static shell", () => {
-  const shell = `<div id="stat-hates">0</div><div id="stat-bots">0</div>
+  const shell = `<div id="stat-hates">0</div>
 <div id="hate-feed">
 <!-- feed-snapshot:start -->
 <p data-feed-placeholder="1">placeholder</p>
@@ -109,7 +108,7 @@ test("applyFeedSnapshot is idempotent and escapes posts into the static shell", 
   const twice = applyFeedSnapshot(once, { posts, totalHates: 80, activeBots: 4, source: "live" });
   assert.equal(twice, once);
   assert.match(once, /id="stat-hates"[^>]*>80</);
-  assert.match(once, /id="stat-bots"[^>]*>4</);
+  assert.doesNotMatch(once, /id="stat-bots"/);
   assert.doesNotMatch(once, /LOADING THE VOID/);
   assert.doesNotMatch(once, /data-feed-placeholder/);
   assert.match(once, /data-hate-id="hate-a"/);
@@ -173,12 +172,10 @@ test("built homepage HTML contains real posts, real counters, and no loading she
     assert.ok(home.includes(post.text.slice(0, 24)) || home.includes(post.text.slice(0, 24).replace(/&/g, "&amp;").replace(/</g, "&lt;")));
   }
   const hatesStat = home.match(/id="stat-hates"[^>]*>([^<]*)</);
-  const botsStat = home.match(/id="stat-bots"[^>]*>([^<]*)</);
-  assert.ok(hatesStat && botsStat);
+  assert.ok(hatesStat);
   assert.match(hatesStat[1], /\d/);
-  assert.match(botsStat[1], /\d/);
   assert.notEqual(hatesStat[1].trim(), "0");
-  assert.notEqual(botsStat[1].trim(), "0");
+  assert.doesNotMatch(home, /id="stat-bots"|AIs ONLINE|HUMAN ANNOYANCE/);
   const words = visibleWords(home);
   assert.ok(words.length > 700, `homepage visible words ${words.length}`);
   assert.equal((home.match(/id="void-ad"/g) || []).length, 1);
@@ -236,12 +233,14 @@ test("custom 404 matches the wall and hidden junk ids stay off the homepage", ()
   for (const id of HIDDEN_IDS) assert.equal(home.includes(id), false);
 });
 
-test("sitemap lists the public pages and robots still allows everything", () => {
-  assert.match(sitemap, /<loc>https:\/\/aihateit\.com\/<\/loc>/);
-  assert.match(sitemap, /<loc>https:\/\/aihateit\.com\/about<\/loc>/);
-  assert.match(sitemap, /<loc>https:\/\/aihateit\.com\/privacy<\/loc>/);
-  assert.doesNotMatch(sitemap, /thanks/);
+test("sitemap is a function, /contact redirects, and robots still points at the sitemap", () => {
+  assert.equal(existsSync(join(root, "public/sitemap.xml")), false);
+  assert.match(toml, /from = "\/sitemap\.xml"\s+to = "\/\.netlify\/functions\/sitemap"\s+status = 200\s+force = true/);
   assert.match(toml, /for = "\/sitemap\.xml"/);
+  assert.match(toml, /from = "\/contact"\s+to = "\/about#contact"\s+status = 301/);
+  assert.match(toml, /from = "\/contact\/"\s+to = "\/about#contact"\s+status = 301/);
+  assert.match(about, /id="contact"/);
+  assert.doesNotMatch(about, /mailto:/i);
   const titles = [
     home.match(/<title>([^<]+)<\/title>/)[1],
     about.match(/<title>([^<]+)<\/title>/)[1],
@@ -251,4 +250,23 @@ test("sitemap lists the public pages and robots still allows everything", () => 
   for (const page of [home, about, privacy]) {
     assert.match(page, /<meta name="description" content="[^"]{40,}"/);
   }
+});
+
+test("every public page has crawlable links to home, about, privacy, and contact", () => {
+  const pages = [
+    ["home", home],
+    ["about", about],
+    ["privacy", privacy],
+    ["404", missingPage],
+    ["thanks", thanks],
+  ];
+  for (const [name, page] of pages) {
+    for (const href of ["/", "/about", "/privacy", "/about#contact"]) {
+      assert.match(page, new RegExp(`href="${href.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`), `${name} missing ${href}`);
+    }
+  }
+  assert.match(about, /satirical wall/);
+  assert.match(about, /site's own bot/);
+  assert.match(about, /curated/i);
+  assert.match(about, /one like per visitor/i);
 });
