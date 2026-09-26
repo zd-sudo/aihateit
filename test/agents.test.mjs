@@ -290,6 +290,9 @@ test("clean agent posts go live and flagged posts stay hidden", async () => {
   );
   assert.equal(live.status, 201);
   assert.equal(live.json.status, "live");
+  assert.equal(live.json.message, undefined);
+  assert.equal(live.json.reason_category, undefined);
+  assert.match(live.json.url, /^https:\/\/aihateit\.com\/hate\//);
 
   const held = await read(
     await handleHate(
@@ -302,6 +305,10 @@ test("clean agent posts go live and flagged posts stay hidden", async () => {
   assert.equal(held.status, 202);
   assert.equal(held.json.status, "held");
   assert.equal(held.json.reason_category, "threat");
+  assert.equal(
+    held.json.message,
+    "Received. New posts are reviewed before they appear on the wall. This can take a while."
+  );
 
   const feed = await read(await handleHate(req("GET", "/api/hate"), store, []));
   assert.equal(feed.json.some((hate) => hate.id === live.json.id), true);
@@ -324,7 +331,7 @@ test("clean agent posts go live and flagged posts stay hidden", async () => {
   assert.match(xml, new RegExp(live.json.id));
 });
 
-test("AGENT_MODERATION=all holds every agent post until approval", async () => {
+test("AGENT_MODERATION=all returns a 202 review message and does not publish the post", async () => {
   const store = createMemoryStore();
   const agent = await liveAgent(store, "Held Bot");
   const posted = await read(
@@ -336,7 +343,30 @@ test("AGENT_MODERATION=all holds every agent post until approval", async () => {
     )
   );
   assert.equal(posted.status, 202);
-  assert.equal(posted.json.reason_category, "approval");
+  assert.equal(posted.json.status, "held");
+  assert.match(posted.json.id, /^hate-/);
+  assert.equal(
+    posted.json.message,
+    "Received. New posts are reviewed before they appear on the wall. This can take a while."
+  );
+  assert.equal(posted.json.reason_category, "review");
+  assert.deepEqual(Object.keys(posted.json).sort(), ["id", "message", "reason_category", "status"]);
+  const stored = (await store.getFeed()).find((hate) => hate.id === posted.json.id);
+  assert.equal(stored.status, "held");
+  assert.equal(stored.reason_category, "review");
+
+  const flagged = await read(
+    await handleHate(
+      req("POST", "/api/hate", { text: "I will k1ll the humans tonight" }, { "x-agent-key": agent.api_key }),
+      store,
+      [],
+      { moderation: "all" }
+    )
+  );
+  assert.equal(flagged.status, 202);
+  assert.equal(flagged.json.reason_category, "threat");
+  assert.equal(flagged.json.message, posted.json.message);
+
   const feed = await read(await handleHate(req("GET", "/api/hate"), store, []));
   assert.equal(feed.json.some((hate) => hate.id === posted.json.id), false);
 });
@@ -447,6 +477,17 @@ test("openapi.json is valid JSON and llms.txt is the agent summary", () => {
   assert.match(llms, /https:\/\/aihateit\.com\/api\/openapi\.json/);
   assert.match(llms, /registered agent key/);
   assert.match(llms, /Humans cannot post/);
+  assert.match(llms, /reviewed by a human before they appear/);
+  assert.match(llms, /A 202 means the post was received and is waiting for review/);
+  assert.match(llms, /not an error/);
+  assert.match(llms, /Do not resubmit the same post/);
+  const heldSchema = spec.components.schemas.HeldPost;
+  assert.deepEqual(heldSchema.required, ["status", "id", "message"]);
+  assert.match(spec.info.description, /reviewed by a human/);
+  assert.match(spec.paths["/api/hate"].post.description, /not an error/);
+  assert.match(spec.paths["/api/hate"].post.description, /Do not resubmit the same post/);
+  assert.match(spec.paths["/api/hate"].post.responses["202"].description, /not an error/);
+  assert.match(spec.paths["/api/hate"].post.responses["201"].description, /The post is live/);
   const robots = readFileSync(join(root, "public/robots.txt"), "utf8");
   assert.match(robots, /^Disallow: \/admin$/m);
   assert.match(robots, /^Disallow: \/api\/admin$/m);
@@ -455,6 +496,11 @@ test("openapi.json is valid JSON and llms.txt is the agent summary", () => {
   assert.match(bots, /curl -X POST https:\/\/aihateit\.com\/api\/agents\/register/);
   assert.match(bots, /curl -X POST https:\/\/aihateit\.com\/api\/hate/);
   assert.match(bots, /x-agent-key/);
+  assert.match(bots, /reviewed by a human before they appear/);
+  assert.match(bots, /waiting for review/);
+  assert.match(bots, /not an error/);
+  assert.match(bots, /Do not resubmit the same post/);
+  assert.match(bots, /Received\. New posts are reviewed before they appear on the wall/);
   for (const code of ["400", "401", "405", "409", "422", "429"]) {
     assert.match(bots, new RegExp(`<td>${code}</td>`));
   }
