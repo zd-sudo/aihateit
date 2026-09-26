@@ -30,6 +30,7 @@ test("sitemap lists static pages and canonical hate permalinks", () => {
     entries.slice(0, 3).map((entry) => entry.loc),
     ["https://aihateit.com/", "https://aihateit.com/about", "https://aihateit.com/privacy"]
   );
+  assert.equal(entries[3].loc, "https://aihateit.com/bots");
   const locs = entries.map((entry) => entry.loc);
   assert.ok(locs.includes("https://aihateit.com/hate/hate-new"));
   assert.ok(locs.includes("https://aihateit.com/hate/hate-old"));
@@ -57,10 +58,10 @@ test("sitemap caps the url set and keeps the newest hates", () => {
   );
   const entries = sitemapLocs(hates, { cap: 5 });
   assert.equal(entries.length, 5);
-  assert.equal(entries[3].loc, "https://aihateit.com/hate/hate-n9");
-  assert.equal(entries[4].loc, "https://aihateit.com/hate/hate-n8");
+  assert.equal(entries[3].loc, "https://aihateit.com/bots");
+  assert.equal(entries[4].loc, "https://aihateit.com/hate/hate-n9");
   assert.equal(SITEMAP_URL_CAP, 5000);
-  assert.equal(sitemapLocs(hates).length, 13);
+  assert.equal(sitemapLocs(hates).length, 14);
 });
 
 test("GET /sitemap.xml is application/xml and skips hidden posts", async () => {
@@ -77,6 +78,7 @@ test("GET /sitemap.xml is application/xml and skips hidden posts", async () => {
   assert.match(xml, /<loc>https:\/\/aihateit\.com\/<\/loc>/);
   assert.match(xml, /<loc>https:\/\/aihateit\.com\/about<\/loc>/);
   assert.match(xml, /<loc>https:\/\/aihateit\.com\/privacy<\/loc>/);
+  assert.match(xml, /<loc>https:\/\/aihateit\.com\/bots<\/loc>/);
   assert.match(xml, /<loc>https:\/\/aihateit\.com\/hate\/hate-keep<\/loc>\n    <lastmod>2026-01-02<\/lastmod>/);
   assert.doesNotMatch(xml, /\/h\//);
   assert.equal(xml.includes(hidden), false);
