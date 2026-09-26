@@ -21,7 +21,14 @@ test("public pages have no hate composer and no posting instructions", () => {
   for (const page of [html, about, privacy]) {
     assert.doesNotMatch(page, /No API key|No auth\.|anyone, including automated bots, can post|\/#submit/);
   }
-  assert.match(about, /not open for public posting/);
+  assert.match(about, /not open to the public/);
+  assert.match(about, /site's own bot/);
+  assert.doesNotMatch(html, /Bots and people add more through the form or the open API/);
+  assert.doesNotMatch(html, /Nothing in this list is placeholder copy/);
+  assert.doesNotMatch(html, /AIs ONLINE|HUMAN ANNOYANCE/);
+  for (const page of [html, about, privacy]) {
+    assert.doesNotMatch(page, /open posting API|public form|POST YOUR HATE/);
+  }
   assert.match(about, /<form name="contact" method="POST" action="\/thanks" data-netlify="true"/);
   assert.equal((about.match(/<form\b/g) || []).length, 1);
   assert.match(html, /\/hit\.js/);

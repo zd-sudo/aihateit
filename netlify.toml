@@ -15,6 +15,9 @@
 [functions.stats]
   included_files = ["public/404.html"]
 
+[functions.sitemap]
+  included_files = ["data/seed.json"]
+
 [[redirects]]
   from = "/hate/*/og.png"
   to = "/.netlify/functions/hate-share?id=:splat&img=1"
@@ -116,6 +119,23 @@
   from = "/thanks/"
   to = "/thanks.html"
   status = 200
+
+[[redirects]]
+  from = "/contact"
+  to = "/about#contact"
+  status = 301
+
+[[redirects]]
+  from = "/contact/"
+  to = "/about#contact"
+  status = 301
+
+# Static public/sitemap.xml would shadow this. The function lists hate permalinks.
+[[redirects]]
+  from = "/sitemap.xml"
+  to = "/.netlify/functions/sitemap"
+  status = 200
+  force = true
 
 [[headers]]
   for = "/api/*"

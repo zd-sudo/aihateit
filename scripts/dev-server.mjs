@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { handleHate } from "../lib/handler.mjs";
 import { createFileHitStore, handleHit, handleStats } from "../lib/hits.mjs";
 import { handleHateShare, loadNotFoundHtml } from "../lib/share.mjs";
+import { handleSitemap } from "../lib/sitemap.mjs";
 import { createFileStore } from "../lib/store.mjs";
 import { readFileSync } from "node:fs";
 
@@ -65,6 +66,23 @@ const server = createServer(async (req, res) => {
     }
 
     const path = requestUrl.pathname;
+    if (path === "/contact" || path === "/contact/") {
+      res.writeHead(301, {
+        Location: "/about#contact",
+        "Cache-Control": "public, max-age=300",
+      });
+      res.end();
+      return;
+    }
+
+    if (path === "/sitemap.xml") {
+      const request = await toWebRequest(req);
+      const response = await handleSitemap(request, store, seed);
+      res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+      res.end(Buffer.from(await response.arrayBuffer()));
+      return;
+    }
+
     if (path === "/api/hate" || path === "/api/hate/" || path === "/api/hate/like" || path === "/api/hate/like/") {
       const request = await toWebRequest(req);
       const response = await handleHate(request, store, seed);
