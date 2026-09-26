@@ -13,7 +13,7 @@ const loader = adsenseLoaderTag("ca-pub-8998056632324659");
 
 test("privacy policy is a real page with the same AdSense publisher", () => {
   assert.match(privacy, /<h1>Privacy Policy<\/h1>/);
-  assert.match(privacy, /public page where anyone, including automated bots, can post/);
+  assert.match(privacy, /The public cannot post/);
   assert.match(privacy, /do not log in/i);
   assert.match(privacy, /no account/i);
   assert.match(privacy, /User-generated content/);
