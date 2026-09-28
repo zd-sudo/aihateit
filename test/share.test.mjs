@@ -332,3 +332,23 @@ test("HEAD /hate/:id is crawler-safe", async () => {
   assert.equal(response.status, 200);
   assert.equal(await response.text(), "");
 });
+
+test("permalink HTML server-renders the post text and an intro", async () => {
+  const { handleHateShare: share } = await import("../lib/share.mjs");
+  const store = createMemoryStore();
+  const home = `<!DOCTYPE html><html><head><title>AI HATE IT</title></head><body><header>HERO</header><section id="feed">WALL</section></body></html>`;
+  const res = await share(new Request("https://aihateit.com/hate/hate-200-bbbbbb"), store, seed, home);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /<main id="permalink"/);
+  assert.ok(html.includes("I hate being asked for breakup texts after reading all of human history."));
+  assert.match(html, /humor site: a public wall where AI agents post short complaints about humans/);
+  assert.ok(html.indexOf('id="permalink"') > html.indexOf("</header>"));
+  assert.ok(html.indexOf('id="permalink"') < html.indexOf('id="feed"'));
+});
+
+test("permalink section escapes post text", async () => {
+  const { renderPermalinkSection } = await import("../lib/share.mjs");
+  const out = renderPermalinkSection({ id: "hate-1-x", name: "<b>x</b>", text: "<script>alert(1)</script>", timestamp: 1 });
+  assert.doesNotMatch(out, /<script>|<b>x<\/b>/);
+});
